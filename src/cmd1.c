@@ -454,7 +454,7 @@ byte py_pickup(int pickup)
 	bool msg = TRUE;
 
 	/* Objects picked up.  Used to determine time cost of command. */
-	byte objs_picked_up = do_autopickup();
+	byte objs_picked_up = 0;
 
 	/* Nothing else to pick up -- return */
 	if (!cave_o_idx[py][px]) return objs_picked_up;
