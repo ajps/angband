@@ -1723,6 +1723,85 @@ static void check_panel(game_event_type type, game_event_data *data, void *user)
 	verify_panel();
 }
 
+static void see_floor_items(game_event_type type, game_event_data *data, void *user)
+{
+	int py = p_ptr->py;
+	int px = p_ptr->px;
+
+	size_t floor_num = 0;
+	int floor_list[MAX_FLOOR_STACK + 1];
+	bool blind = ((p_ptr->timed[TMD_BLIND]) || (no_light()));
+
+	const char *p = "see";
+	bool can_pickup = FALSE;
+
+	/* Scan all marked objects in the grid */
+	floor_num = scan_floor(floor_list, N_ELEMENTS(floor_list), py, px, 0x03);
+	if (floor_num == 0) return;
+
+	can_pickup = inven_carry_okay(&o_list[floor_list[0]]);
+	
+	/* One object */
+	if (floor_num == 1)
+	{
+		/* Get the object */
+		object_type *o_ptr = &o_list[floor_list[0]];
+		char o_name[80];
+
+		if (!can_pickup)	p = "have no room for";
+		else if (blind)     p = "feel";
+
+		/* Describe the object.  Less detail if blind. */
+		if (blind)
+			object_desc(o_name, sizeof(o_name), o_ptr,
+				    ODESC_PREFIX | ODESC_BASE);
+		else
+			object_desc(o_name, sizeof(o_name), o_ptr,
+				    ODESC_PREFIX | ODESC_FULL);
+
+		/* Message */
+		message_flush();
+		msg_format("!You %s %s.", p, o_name);
+	}
+	else
+	{
+		/* Optionally, display more information about floor items */
+		if (OPT(pickup_detail))
+		{
+			if (!can_pickup)	p = "have no room for the following objects";
+			else if (blind)     p = "feel something on the floor";
+
+			/* Save screen */
+			screen_save();
+
+			/* Display objects on the floor */
+			show_floor(floor_list, floor_num, (OLIST_WEIGHT));
+
+			/* Display prompt */
+			prt(format("!You %s: ", p), 0, 0);
+
+			/* Move cursor back to character, if needed */
+			if (OPT(highlight_player)) move_cursor_relative(p_ptr->py, p_ptr->px);
+
+			/* Wait for it.  Use key as next command. */
+			p_ptr->command_new = inkey();
+
+			/* Restore screen */
+			screen_load();
+		}
+
+		/* Show less detail */
+		else
+		{
+			message_flush();
+			if (!can_pickup)
+				msg_print("!You have no room for any of the items on the floor.");
+			else
+				msg_format("!You %s a pile of %d items.", (blind ? "feel" : "see"), floor_num);
+		}
+	}
+}
+
 extern game_event_handler ui_enter_birthscreen;
 
 /* ------------------------------------------------------------------------
@@ -1764,6 +1843,7 @@ static void ui_enter_game(game_event_type type, game_event_data *data, void *use
 #endif
 	/* Check if the panel should shift when the player's moved */
 	event_add_handler(EVENT_PLAYERMOVED, check_panel, NULL);
+	event_add_handler(EVENT_PLAYERMOVED, see_floor_items, NULL);
 }
 
 static void ui_leave_game(game_event_type type, game_event_data *data, void *user)
