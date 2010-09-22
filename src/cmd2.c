@@ -20,6 +20,7 @@
 
 #include "cmds.h"
 #include "game-cmd.h"
+#include "game-event.h"
 
 /*
  * Go up one level
@@ -2221,6 +2222,10 @@ void do_cmd_hold(cmd_code code, cmd_arg args[])
 
 		/* Free turn XXX XXX XXX */
 		p_ptr->energy_use = 0;
+	}
+	else
+	{
+	    event_signal(EVENT_SEEFLOOR);
 	}
 }
 

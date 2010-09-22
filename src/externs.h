@@ -301,6 +301,7 @@ extern bool dtrap_edge(int y, int x);
 
 /* cmd1.c */
 extern bool search(bool verbose);
+extern int do_autopickup(void);
 extern byte py_pickup(int pickup);
 extern void move_player(int dir);
 
