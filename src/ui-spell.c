@@ -159,7 +159,7 @@ static const menu_iter spell_menu_iter = {
 };
 
 /** Create and initialise a spell menu, given an object and a validity hook */
-static menu_type *spell_menu_new(const object_type *o_ptr,
+static menu_type *spell_book_menu_new(const object_type *o_ptr,
 		bool (*is_valid)(int spell))
 {
 	menu_type *m = menu_new(MN_SKIN_SCROLL, &spell_menu_iter);
@@ -170,6 +170,48 @@ static menu_type *spell_menu_new(const object_type *o_ptr,
 	/* collect spells from object */
 	d->n_spells = spell_collect_from_book(o_ptr, d->spells);
 	if (d->n_spells == 0 || !spell_okay_list(is_valid, d->spells, d->n_spells))
+	{
+		mem_free(m);
+		mem_free(d);
+		return NULL;
+	}
+
+	/* copy across private data */
+	d->is_valid = is_valid;
+	d->selected_spell = -1;
+	d->browse = FALSE;
+	d->show_description = FALSE;
+
+	menu_setpriv(m, d->n_spells, d);
+
+	/* set flags */
+	m->header = "Name                             Lv Mana Fail Info";
+	m->flags = MN_CASELESS_TAGS;
+	m->selections = lower_case;
+	m->browse_hook = spell_menu_browser;
+	m->cmd_keys = "?";
+
+	/* set size */
+	loc.page_rows = d->n_spells + 1;
+	menu_layout(m, &loc);
+
+	return m;
+}
+
+/** 
+ * Create and initialise a spell menu of all available spells, given a 
+ * validity hook 
+ */
+static menu_type *spell_menu_new(bool (*is_valid)(int spell))
+{
+	menu_type *m = menu_new(MN_SKIN_SCROLL, &spell_menu_iter);
+	struct spell_menu_data *d = mem_alloc(sizeof *d);
+
+	region loc = { -60, 1, 60, -99 };
+
+	/* collect spells from full list */
+	d->n_spells = spell_collect_available(d->spells, is_valid);
+	if (d->n_spells == 0)
 	{
 		mem_free(m);
 		mem_free(d);
@@ -248,7 +290,7 @@ static void spell_menu_browse(menu_type *m, const char *noun)
 
 
 /**
- * Interactively select a spell.
+ * Interactively select a spell from the given spell book.
  *
  * Returns the spell selected, or -1.
  */
@@ -259,7 +301,27 @@ int get_spell(const object_type *o_ptr, const char *verb,
 	const char *noun = (p_ptr->class->spell_book == TV_MAGIC_BOOK ?
 			"spell" : "prayer");
 
-	m = spell_menu_new(o_ptr, spell_test);
+	m = spell_book_menu_new(o_ptr, spell_test);
+	if (m) {
+		int spell = spell_menu_select(m, noun, verb);
+		spell_menu_destroy(m);
+		return spell;
+	}
+
+	return -1;
+}
+/**
+ * Interactively select a spell from all available spell books.
+ *
+ * Returns the spell selected, or -1.
+ */
+int get_spell_ignore_books(const char *verb, bool (*spell_test)(int spell))
+{
+	menu_type *m;
+	const char *noun = (p_ptr->class->spell_book == TV_MAGIC_BOOK ?
+			"spell" : "prayer");
+
+	m = spell_menu_new(spell_test);
 	if (m) {
 		int spell = spell_menu_select(m, noun, verb);
 		spell_menu_destroy(m);
@@ -278,7 +340,7 @@ void textui_book_browse(const object_type *o_ptr)
 	const char *noun = (p_ptr->class->spell_book == TV_MAGIC_BOOK ?
 			"spell" : "prayer");
 
-	m = spell_menu_new(o_ptr, spell_okay_to_browse);
+	m = spell_book_menu_new(o_ptr, spell_okay_to_browse);
 	if (m) {
 		spell_menu_browse(m, noun);
 		spell_menu_destroy(m);
@@ -335,52 +397,35 @@ void textui_obj_study(void)
 }
 
 /**
- * Cast a spell from a book.
+ * Cast a spell from any available book.
  */
-void textui_obj_cast(void)
-{
-	int item;
-	int spell;
 
-	const char *verb = ((p_ptr->class->spell_book == TV_MAGIC_BOOK) ? "cast" : "recite");
-
-	if (!get_item(&item, "Cast from which book? ",
-			"You have no books that you can read.",
-			CMD_CAST, obj_can_cast_from, (USE_INVEN | USE_FLOOR)))
-		return;
-
-	/* Track the object kind */
-	track_object(item);
-
-	/* Ask for a spell */
-	spell = get_spell(object_from_item_idx(item), verb, spell_okay_to_cast);
-	if (spell >= 0) {
-		cmdq_push(CMD_CAST);
-		cmd_set_arg_choice(cmdq_peek(), 0, spell);
-	}
-}
-/* same as above but returns the spell used. two functions to avoid some
- * compiler warnings initializing commands in cmd0.c */
 int textui_obj_cast_ret(void)
 {
-	int item;
 	int spell;
-
+	int spell_list[PY_MAX_SPELLS];
+	
 	const char *verb = ((p_ptr->class->spell_book == TV_MAGIC_BOOK) ? "cast" : "recite");
 
-	if (!get_item(&item, "Cast from which book? ",
-			"You have no books that you can read.",
-			CMD_CAST, obj_can_cast_from, (USE_INVEN | USE_FLOOR)))
+	if (spell_collect_available(spell_list, spell_okay_to_cast) == 0)
+	{
+		msg("You have no spells that you can cast.");
 		return -1;
-
-	/* Track the object kind */
-	track_object(item);
+	}
 
 	/* Ask for a spell */
-	spell = get_spell(object_from_item_idx(item), verb, spell_okay_to_cast);
+	spell = get_spell_ignore_books(verb, spell_okay_to_cast);
 	if (spell >= 0) {
 		cmdq_push(CMD_CAST);
 		cmd_set_arg_choice(cmdq_peek(), 0, spell);
 	}
-  return spell;
+
+	return spell;
+}
+
+/* same as above but drops the return value to avoid some
+ * compiler warnings initializing commands in cmd0.c */
+void textui_obj_cast(void)
+{
+	textui_obj_cast_ret();
 }
