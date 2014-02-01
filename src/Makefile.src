@@ -8,6 +8,32 @@
 VERSION = TNG
 COPYRIGHT = (c) 1995-2014 Angband contributors
 
+LUAHEADERS = \
+        lapi.h \
+        lauxlib.h \
+        lcode.h \
+        lctype.h \
+        ldebug.h \
+        ldo.h \
+        lfunc.h \
+        lgc.h \
+        llex.h \
+        llimits.h \
+        lmem.h \
+        lobject.h \
+        lopcodes.h \
+        lparser.h \
+        lstate.h \
+        lstring.h \
+        ltable.h \
+        ltm.h \
+        luaconf.h \
+        lua.h \
+        lualib.h \
+        lundump.h \
+        lvm.h \
+        lzio.h
+
 HEADERS = \
 	angband.h \
 	birth.h \
@@ -42,7 +68,8 @@ HEADERS = \
 	z-term.h \
 	z-type.h \
 	z-util.h \
-	z-virt.h
+	z-virt.h \
+        $(LUA_HEADERS)
 
 ZFILES = \
 	z-bitflag.o \
@@ -178,6 +205,39 @@ ANGFILES = \
 	x-spell.o \
 	xtra2.o \
 	xtra3.o \
+        lapi.o \
+        lauxlib.o \
+        lbaselib.o \
+        lbitlib.o \
+        lcode.o \
+        lcorolib.o \
+        lctype.o \
+        ldblib.o \
+        ldebug.o \
+        ldo.o \
+        ldump.o \
+        lfunc.o \
+        lgc.o \
+        linit.o \
+        liolib.o \
+        llex.o \
+        lmathlib.o \
+        lmem.o \
+        loadlib.o \
+        lobject.o \
+        lopcodes.o \
+        loslib.o \
+        lparser.o \
+        lstate.o \
+        lstring.o \
+        lstrlib.o \
+        ltable.o \
+        ltablib.o \
+        ltm.o \
+        lundump.o \
+        lvm.o \
+        lzio.o \
+
 
 STATSMAINFILES = main-stats.o \
         stats/db.o
