@@ -147,6 +147,52 @@ int spell_collect_from_book(const object_type *o_ptr, int *spells)
 	return n_spells;
 }
 
+/**
+ * Collect all available spells into the `spells[]` array.
+ *
+ * Available is defined in a book that's in the inventory or underfoot,
+ * readable by the player and matched by the `tester` function supplied.
+ * Returns the number of spells matched & stored in the `spells` array.
+ */
+int spell_collect_available(int *spells, bool (*tester)(int spell))
+{
+	int n_spells = 0;
+	bool castable_table[PY_MAX_SPELLS] = { FALSE };
+
+	int item_list[INVEN_TOTAL];
+	int item_num;
+	object_type *o_ptr;
+	struct spell *sp;
+
+	int i;
+
+	/* Select all books the player can read in inventory & on the floor */
+	item_num = scan_items(item_list, N_ELEMENTS(item_list), (USE_INVEN | USE_FLOOR), obj_can_browse);
+	
+	/* Check through all available books */
+	for (i = 0; i < item_num; i++)
+	{
+		o_ptr = object_from_item_idx(item_list[i]);
+		
+		/* Extract spells */
+		for (sp = o_ptr->kind->spells; sp; sp = sp->next) {
+			/* Check if the player can cast it, set castable flag in table */
+			if (tester(sp->spell_index))
+				castable_table[sp->spell_index] = TRUE;
+		}
+	}
+	
+	/* Collect available flags from the table into a list of spell idxs */
+	for (i = 0; i < PY_MAX_SPELLS; i++) {
+		if (castable_table[i])
+			spells[n_spells++] = i;
+	}
+
+	/* XXX We might want to sort these into an order other than spell index
+	   order, but not for now - 2014-02-01 ajps */
+
+	return n_spells;
+}
 
 /**
  * Return the number of castable spells in the spellbook 'o_ptr'.
