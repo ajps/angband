@@ -28,7 +28,7 @@
 #include "buildid.h"
 #include "history.h"
 #include "obj-util.h"
-
+#include "lua-init.h"
 
 /*
  * Toggle wizard mode
@@ -700,4 +700,22 @@ void do_cmd_note(void) {
 
 	/* Add a history entry */
 	history_add(note, HISTORY_USER_INPUT, 0);
+}
+
+/**
+ * Execute a string in Lua.
+ */
+void do_cmd_lua(void) {
+	/* Allocate/Initialize strings to get and format user input. */
+	char tmp[70] = "";
+
+	/* Read a line of input from the user */
+	if (!get_string("Lua> ", tmp, sizeof(tmp))) return;
+
+	/* Ignore empty notes */
+	if (!tmp[0] || (tmp[0] == ' ')) return;
+
+	msg("%s", NULL);
+
+	lua_execute(tmp);
 }

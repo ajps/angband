@@ -144,6 +144,7 @@ static struct cmd_info cmd_util[] =
 static struct cmd_info cmd_hidden[] =
 {
 	{ "Take notes", { ':' }, CMD_NULL, do_cmd_note },
+	{ "Execute Lua", { '|' }, CMD_NULL, do_cmd_lua },
 	{ "Version info", { 'V' }, CMD_NULL, do_cmd_version },
 	{ "Load a single pref line", { '"' }, CMD_NULL, do_cmd_pref },
 	{ "Enter a store", { '_' }, CMD_ENTER_STORE, NULL },

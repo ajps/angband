@@ -58,7 +58,7 @@ void lua_init(void)
 	L = lua_newstate(allocator, NULL);
 	luaL_openlibs(L);
 
-	luaL_setfuncs(L, lua_debug_table, 0);
+	luaL_newlib(L, lua_debug_table);
 	lua_setglobal(L, "debug");
 }
 
@@ -70,4 +70,18 @@ void lua_cleanup(void)
 	if (L) {
 		lua_close(L);
 	}
+}
+
+void lua_execute(const char *line)
+{
+	int result = luaL_loadstring(L, line);
+
+	if (result == LUA_OK) {
+		lua_pcall(L, 0, LUA_MULTRET, 0);
+	} else {
+		msg("Lua error! ");
+		msg(luaL_checkstring(L, 1));
+	}
+
+	return;
 }

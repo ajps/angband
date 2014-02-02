@@ -65,6 +65,7 @@ void do_cmd_save_screen(void);
 void do_cmd_version(void);
 void do_cmd_pref(void);
 void do_cmd_note(void);
+void do_cmd_lua(void);
 
 /* cmd-obj.c */
 void do_cmd_uninscribe(struct command *cmd);
