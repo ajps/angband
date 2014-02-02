@@ -19,10 +19,11 @@
 #include "lua-bindings.h"
 #include "game-cmd.h"
 
-/**
- * Implements cmd.walk(1), etc.
+/** 
+ * Handles extracting a direction from the lua stack, pushes the
+ * correct command & direction to the game.
  */
-int lua_cmd_walk(lua_State *L)
+static int push_direction_cmd(lua_State *L, cmd_code code)
 {
 	int n = luaL_checknumber(L, 1);
 
@@ -30,14 +31,62 @@ int lua_cmd_walk(lua_State *L)
 		return luaL_error(L, "%d is not a valid direction", n);
 	}
 
-	cmdq_push(CMD_WALK);
+	cmdq_push(code);
 	cmd_set_arg_direction(cmdq_peek(), 0, n);
 
- 	return 0;
+	return 0;
 }
+
+int lua_cmd_walk(lua_State *L) 
+{
+	return push_direction_cmd(L, CMD_WALK);
+}
+
+int lua_cmd_run(lua_State *L)
+{
+	return push_direction_cmd(L, CMD_RUN);
+}
+
+int lua_cmd_jump(lua_State *L)
+{
+	return push_direction_cmd(L, CMD_JUMP);
+}
+
+int lua_cmd_open(lua_State *L)
+{
+	return push_direction_cmd(L, CMD_OPEN);
+}
+
+int lua_cmd_close(lua_State *L)
+{
+	return push_direction_cmd(L, CMD_CLOSE);
+}
+
+int lua_cmd_tunnel(lua_State *L)
+{
+	return push_direction_cmd(L, CMD_TUNNEL);
+}
+
+int lua_cmd_disarm(lua_State *L)
+{	
+	return push_direction_cmd(L, CMD_DISARM);
+}
+
+int lua_cmd_alter(lua_State *L)
+{	
+	return push_direction_cmd(L, CMD_ALTER);
+}
+
 
 luaL_Reg lua_cmd_table[] = {
 	{ "walk", lua_cmd_walk },
+	{ "run", lua_cmd_run },
+	{ "jump", lua_cmd_jump },
+	{ "open", lua_cmd_open },
+	{ "close", lua_cmd_close },
+	{ "tunnel", lua_cmd_tunnel },
+	{ "disarm", lua_cmd_disarm },
+	{ "alter", lua_cmd_alter },
 	{ NULL, NULL }
 };
 
