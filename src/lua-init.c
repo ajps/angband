@@ -16,9 +16,7 @@
  *    are included in all such copies.  Other copyrights may also apply.
  */
 #include "angband.h"
-#include "lua.h"
-#include "lualib.h"
-#include "lauxlib.h"
+#include "lua-bindings.h"
 
 /* Should just need one global lua state for the game */
 lua_State *L;
@@ -36,6 +34,7 @@ static void *allocator (void *ud, void *ptr, size_t osize, size_t nsize)
 	}
 }
 
+/* Simple debug helper */
 int lua_debug_msg(lua_State *L)
 {
 	const char *text = luaL_checkstring(L, 1);
@@ -58,8 +57,11 @@ void lua_init(void)
 	L = lua_newstate(allocator, NULL);
 	luaL_openlibs(L);
 
+	/* Initialise all the tables of commands */
 	luaL_newlib(L, lua_debug_table);
 	lua_setglobal(L, "debug");
+
+	lua_cmd_init();
 }
 
 /**
@@ -72,15 +74,27 @@ void lua_cleanup(void)
 	}
 }
 
+/**
+ * Execute the given lua string in the global lua environment.
+ *
+ * This passes any errors in the statement being executed out through
+ * the msg() system.
+ */
 void lua_execute(const char *line)
 {
 	int result = luaL_loadstring(L, line);
 
 	if (result == LUA_OK) {
-		lua_pcall(L, 0, LUA_MULTRET, 0);
-	} else {
-		msg("Lua error! ");
+		result = lua_pcall(L, 0, LUA_MULTRET, 0);
+		if (result != LUA_OK) {
+			msg("Lua error! ");
+			msg(luaL_checkstring(L, 1));
+			lua_pop(L, 1);
+		}
+	} else { 
+		msg("Lua compile error! ");
 		msg(luaL_checkstring(L, 1));
+		lua_pop(L, 1);
 	}
 
 	return;

@@ -45,7 +45,7 @@
 #include "randname.h"
 #include "squelch.h"
 #include "trap.h"
-#include "lua-init.h"
+#include "lua-bindings.h"
 
 /*
  * Structure (not array) of size limits

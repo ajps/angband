@@ -69,6 +69,7 @@ HEADERS = \
 	z-type.h \
 	z-util.h \
 	z-virt.h \
+        lua-bindings.h \
         $(LUA_HEADERS)
 
 ZFILES = \
@@ -206,6 +207,7 @@ ANGFILES = \
 	xtra2.o \
 	xtra3.o \
         lua-init.o \
+        lua-cmd.o \
         lapi.o \
         lauxlib.o \
         lbaselib.o \

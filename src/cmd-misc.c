@@ -28,7 +28,7 @@
 #include "buildid.h"
 #include "history.h"
 #include "obj-util.h"
-#include "lua-init.h"
+#include "lua-bindings.h"
 
 /*
  * Toggle wizard mode
@@ -715,6 +715,7 @@ void do_cmd_lua(void) {
 	/* Ignore empty notes */
 	if (!tmp[0] || (tmp[0] == ' ')) return;
 
+	/* Clear the line again */
 	msg("%s", NULL);
 
 	lua_execute(tmp);
