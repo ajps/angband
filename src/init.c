@@ -45,6 +45,7 @@
 #include "randname.h"
 #include "squelch.h"
 #include "trap.h"
+#include "lua-init.h"
 
 /*
  * Structure (not array) of size limits
@@ -3288,6 +3289,8 @@ bool init_angband(void)
 
 	/* Sneakily init command list */
 	cmd_init();
+	
+    lua_init();
 
 	/* Ask for a "command" until we get one we like. */
 	while (1)
@@ -3318,6 +3321,8 @@ void cleanup_angband(void)
 	for (i = 0; modules[i]; i++)
 		if (modules[i]->cleanup)
 			modules[i]->cleanup();
+
+	lua_cleanup();
 
 	/* Free the macros */
 	keymap_free();

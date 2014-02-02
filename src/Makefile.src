@@ -205,6 +205,7 @@ ANGFILES = \
 	x-spell.o \
 	xtra2.o \
 	xtra3.o \
+        lua-init.o \
         lapi.o \
         lauxlib.o \
         lbaselib.o \
