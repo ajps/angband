@@ -25,14 +25,41 @@
  */
 static int push_direction_cmd(lua_State *L, cmd_code code)
 {
-	int n = luaL_checknumber(L, 1);
+	const char *param;
+	int dir;
+	
+	/* We need at least one parameter - we'll ignore extras */
+	luaL_checkany(L, 1);
 
-	if (n < 1 || n > 9 || n == 5) {
-		return luaL_error(L, "%d is not a valid direction", n);
+	/* We'll treat a direction number as a string for simplicity. */
+	param = lua_tostring(L, 1);
+
+	if (param) {
+		if (streq(param, "SW") || streq(param, "1")) 
+			dir = 1;
+		else if (streq(param, "S") || streq(param, "2")) 
+			dir = 2;
+		else if (streq(param, "SE") || streq(param, "3")) 
+			dir = 3;
+		else if (streq(param, "W") || streq(param, "4")) 
+			dir = 4;
+		else if (streq(param, "E") || streq(param, "6")) 
+			dir = 6;
+		else if (streq(param, "NW") || streq(param, "7")) 
+			dir = 7;
+		else if (streq(param, "N") || streq(param, "8")) 
+			dir = 8;
+		else if (streq(param, "NE") || streq(param, "9")) 
+			dir = 9;		
+		else
+			return luaL_error(L, "%s is not a valid direction", param);
+
+	} else {
+		return luaL_error(L, "Direction command requires a direction");
 	}
 
 	cmdq_push(code);
-	cmd_set_arg_direction(cmdq_peek(), 0, n);
+	cmd_set_arg_direction(cmdq_peek(), 0, dir);
 
 	return 0;
 }
