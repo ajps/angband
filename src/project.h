@@ -73,7 +73,9 @@ enum
 #define PROJECT_KILL  0x040
 #define PROJECT_HIDE  0x080
 #define PROJECT_AWARE 0x100
-
+#define PROJECT_SAFE  0x200
+#define PROJECT_ARC   0x400
+#define PROJECT_PLAY  0x800 /* Needs significant changes to implement */
 
 /* project.c */
 extern byte gf_to_attr[GF_MAX][BOLT_MAX];
@@ -81,12 +83,13 @@ extern wchar_t gf_to_char[GF_MAX][BOLT_MAX];
 
 int gf_name_to_idx(const char *name);
 const char *gf_idx_to_name(int type);
-bool project(int who, int rad, int y, int x, int dam, int typ, int flg);
 int check_for_resist(struct player *p, int type, bitflag *flags, bool real);
 bool check_side_immune(int type);
 int inven_damage(struct player *p, int type, int cperc);
 int adjust_dam(struct player *p, int type, int dam, aspect dam_aspect, int resist);
 void monster_learn_resists(struct monster *m, struct player *p, int type);
 void dedup_hates_flags(bitflag *f);
+bool project(int who, int rad, int y, int x, int dam, int typ, int flg,
+			 int degrees_of_arc, byte diameter_of_source);
 
 #endif /* !PROJECT_H */
