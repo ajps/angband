@@ -18,39 +18,44 @@
 #include "angband.h"
 #include "lua-bindings.h"
 #include "game-cmd.h"
+#include "lua-objects.h"
 
 /** 
- * Handles extracting a direction from the lua stack, pushes the
- * correct command & direction to the game.
+ * Handles extracting a direction from the lua stack.
+ * 
+ * Like other luaL_check* functions, this is designed to be used
+ * for parameters, and throws an error  if it doesn't find a valid direction.
  */
-static int push_direction_cmd(lua_State *L, cmd_code code)
+static int luaL_checkdirection(lua_State *L, int index, bool allow_target)
 {
 	const char *param;
 	int dir;
 	
-	/* We need at least one parameter - we'll ignore extras */
-	luaL_checkany(L, 1);
+	/* Check there is a value at the given point in the stack */
+	luaL_checkany(L, index);
 
 	/* We'll treat a direction number as a string for simplicity. */
-	param = lua_tostring(L, 1);
+	param = lua_tostring(L, index);
 
 	if (param) {
 		if (streq(param, "SW") || streq(param, "1")) 
-			dir = 1;
+			dir = DIR_SW;
 		else if (streq(param, "S") || streq(param, "2")) 
-			dir = 2;
+			dir = DIR_S;
 		else if (streq(param, "SE") || streq(param, "3")) 
-			dir = 3;
+			dir = DIR_SE;
 		else if (streq(param, "W") || streq(param, "4")) 
-			dir = 4;
+			dir = DIR_W;
 		else if (streq(param, "E") || streq(param, "6")) 
-			dir = 6;
+			dir = DIR_E;
 		else if (streq(param, "NW") || streq(param, "7")) 
-			dir = 7;
+			dir = DIR_NW;
 		else if (streq(param, "N") || streq(param, "8")) 
-			dir = 8;
+			dir = DIR_N;
 		else if (streq(param, "NE") || streq(param, "9")) 
-			dir = 9;		
+			dir = DIR_NE;		
+		else if (allow_target && (streq(param, "*") || streq(param, "5")) )
+			dir = DIR_TARGET;		
 		else
 			return luaL_error(L, "%s is not a valid direction", param);
 
@@ -58,6 +63,17 @@ static int push_direction_cmd(lua_State *L, cmd_code code)
 		return luaL_error(L, "Direction command requires a direction");
 	}
 
+	return dir;
+}
+
+/**
+ * Pushes a command with a direction to the game
+ */
+static int push_direction_cmd(lua_State *L, cmd_code code)
+{
+	int dir;
+
+	dir = luaL_checkdirection(L, 1, FALSE);
 	cmdq_push(code);
 	cmd_set_arg_direction(cmdq_peek(), 0, dir);
 
@@ -104,6 +120,89 @@ int lua_cmd_alter(lua_State *L)
 	return push_direction_cmd(L, CMD_ALTER);
 }
 
+int lua_cmd_upstairs(lua_State *L)
+{	
+	cmdq_push(CMD_GO_UP);
+	return 0;
+}
+
+int lua_cmd_downstairs(lua_State *L)
+{	
+	cmdq_push(CMD_GO_DOWN);
+	return 0;
+}
+
+int lua_cmd_search(lua_State *L)
+{	
+	cmdq_push(CMD_SEARCH);
+	return 0;
+}
+
+int lua_cmd_hold(lua_State *L)
+{	
+	cmdq_push(CMD_HOLD);
+	return 0;
+}
+
+int lua_cmd_save(lua_State *L)
+{	
+	cmdq_push(CMD_SAVE);
+	return 0;
+}
+
+/*
+ * cmd.run_to({x = <x>, y = <y>})
+ */
+int lua_cmd_run_to(lua_State *L)
+{	
+	int x, y;
+
+	luaL_checktype(L, 1, LUA_TTABLE);
+
+	lua_getfield(L, 1, "x");
+	if (lua_isnumber(L, -1)) {
+		x = lua_tonumber(L, -1);
+		lua_pop(L, 1);
+	} else 	{
+		return luaL_error(L, "No x co-ordinate supplied in table");
+	}
+
+	lua_getfield(L, 1, "y");
+	if (lua_isnumber(L, -1)) {
+		y = lua_tonumber(L, -1);
+		lua_pop(L, 1);
+	} else 	{
+		return luaL_error(L, "No x co-ordinate supplied in table");
+	}
+
+	cmdq_push(CMD_PATHFIND);
+	cmd_set_arg_point(cmdq_peek(), 0, x, y);
+	return 0;
+}
+
+int lua_cmd_use(lua_State *L)
+{	
+	struct object_udata *object;
+	int target = DIR_UNKNOWN;
+
+	fprintf(stderr, "---> lua_cmd_use()\n");
+
+	object = luaL_checkudata(L, 1, "object");
+
+	/* Currently, we'll mimick the shortcomings of game-cmd.c exactly and
+	   not handle Identify scrolls, rods, etc */
+	if (lua_gettop(L) > 1) {
+		target = luaL_checkdirection(L, 1, TRUE);
+	}
+
+	cmdq_push(CMD_USE_ANY);
+	cmd_set_arg_item(cmdq_peek(), 0, object->idx);
+	cmd_set_arg_target(cmdq_peek(), 1, target);
+
+	fprintf(stderr, "<--- lua_cmd_use()\n");
+
+	return 0;
+}
 
 luaL_Reg lua_cmd_table[] = {
 	{ "walk", lua_cmd_walk },
@@ -114,6 +213,13 @@ luaL_Reg lua_cmd_table[] = {
 	{ "tunnel", lua_cmd_tunnel },
 	{ "disarm", lua_cmd_disarm },
 	{ "alter", lua_cmd_alter },
+	{ "upstairs", lua_cmd_upstairs },
+	{ "downstairs", lua_cmd_downstairs },
+	{ "search", lua_cmd_search },
+	{ "hold", lua_cmd_hold },
+	{ "save", lua_cmd_save },
+	{ "run_to", lua_cmd_run_to },
+	{ "use", lua_cmd_use },
 	{ NULL, NULL }
 };
 

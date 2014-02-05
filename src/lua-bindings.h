@@ -6,6 +6,8 @@
 #include "lualib.h"
 #include "lauxlib.h"
 
+#define debugf(...) fprintf(stderr, ##__VA_ARGS__)
+
 extern lua_State *L;
 
 /* function tables */

@@ -17,6 +17,7 @@
  */
 #include "angband.h"
 #include "lua-bindings.h"
+#include "lua-objects.h"
 
 /* Should just need one global lua state for the game */
 lua_State *L;
@@ -62,6 +63,7 @@ void lua_init(void)
 	lua_setglobal(L, "debug");
 
 	lua_cmd_init();
+	lua_objects_init();
 }
 
 /**

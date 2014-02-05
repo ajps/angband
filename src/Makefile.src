@@ -208,6 +208,7 @@ ANGFILES = \
 	xtra3.o \
         lua-init.o \
         lua-cmd.o \
+        lua-objects.o \
         lapi.o \
         lauxlib.o \
         lbaselib.o \
