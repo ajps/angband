@@ -90,12 +90,12 @@ void lua_execute(const char *line)
 		result = lua_pcall(L, 0, LUA_MULTRET, 0);
 		if (result != LUA_OK) {
 			msg("Lua error! ");
-			msg(luaL_checkstring(L, 1));
+			msg(lua_tostring(L, -1));
 			lua_pop(L, 1);
 		}
 	} else { 
 		msg("Lua compile error! ");
-		msg(luaL_checkstring(L, 1));
+		msg(lua_tostring(L, -1));
 		lua_pop(L, 1);
 	}
 
