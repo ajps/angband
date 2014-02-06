@@ -180,12 +180,11 @@ int lua_cmd_run_to(lua_State *L)
 	return 0;
 }
 
+
 int lua_cmd_use(lua_State *L)
 {	
 	struct object_udata *object;
 	int target = DIR_UNKNOWN;
-
-	fprintf(stderr, "---> lua_cmd_use()\n");
 
 	object = luaL_checkudata(L, 1, "object");
 
@@ -199,7 +198,27 @@ int lua_cmd_use(lua_State *L)
 	cmd_set_arg_item(cmdq_peek(), 0, object->idx);
 	cmd_set_arg_target(cmdq_peek(), 1, target);
 
-	fprintf(stderr, "<--- lua_cmd_use()\n");
+	return 0;
+}
+
+/** 
+ * cmd.drop(object [, number])
+ */
+int lua_cmd_drop(lua_State *L)
+{	
+	struct object_udata *object;
+	int target = DIR_UNKNOWN;
+	int number = 1;
+
+	object = luaL_checkudata(L, 1, "object");
+
+	/* number to drop is optional, defaults to 1 */
+	if (lua_gettop(L) > 1)
+		number = luaL_checknumber(L, 2);
+
+	cmdq_push(CMD_DROP);
+	cmd_set_arg_item(cmdq_peek(), 0, object->idx);
+	cmd_set_arg_number(cmdq_peek(), 1, number);
 
 	return 0;
 }
@@ -220,6 +239,7 @@ luaL_Reg lua_cmd_table[] = {
 	{ "save", lua_cmd_save },
 	{ "run_to", lua_cmd_run_to },
 	{ "use", lua_cmd_use },
+	{ "drop", lua_cmd_drop },
 	{ NULL, NULL }
 };
 
