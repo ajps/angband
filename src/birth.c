@@ -19,17 +19,24 @@
 #include "angband.h"
 #include "birth.h"
 #include "cmds.h"
+#include "dungeon.h"
 #include "files.h"
 #include "game-event.h"
 #include "game-cmd.h"
 #include "history.h"
+#include "init.h"
+#include "monster.h"
 #include "obj-identify.h"
 #include "obj-make.h"
 #include "obj-tval.h"
 #include "obj-util.h"
+#include "object.h"
+#include "player.h"
 #include "squelch.h"
+#include "store.h"
 #include "quest.h"
 #include "ui-menu.h"
+#include "ui-input.h"
 
 /*
  * Overview
@@ -180,8 +187,6 @@ static void get_stats(int stat_use[A_MAX])
 {
 	int i, j;
 
-	int bonus;
-
 	int dice[18];
 
 
@@ -205,6 +210,8 @@ static void get_stats(int stat_use[A_MAX])
 	/* Roll the stats */
 	for (i = 0; i < A_MAX; i++)
 	{
+		int bonus;
+
 		/* Extract 5 + 1d3 + 1d4 + 1d5 */
 		j = 5 + dice[3*i] + dice[3*i+1] + dice[3*i+2];
 
@@ -282,12 +289,11 @@ static void get_bonuses(void)
  */
 char *get_history(struct history_chart *chart)
 {
-	int roll;
 	struct history_entry *entry;
 	char *res = NULL;
 
 	while (chart) {
-		roll = randint1(100);
+		int roll = randint1(100);
 		for (entry = chart->entries; entry; entry = entry->next)
 			if (roll <= entry->roll)
 				break;
@@ -981,10 +987,9 @@ void player_birth(bool quickstart_allowed)
 		else if (cmd->command == CMD_FINALIZE_OPTIONS)
 		{
 			/* Reset score options from cheat options */
-			for (i = OPT_CHEAT; i < OPT_CHEAT + N_OPTS_CHEAT; i++)
-			{
-				op_ptr->opt[OPT_SCORE + (i - OPT_CHEAT)] =
-					op_ptr->opt[i];
+			for (i = 0; i < OPT_MAX; i++) {
+				if (option_type(i) == OP_CHEAT)
+					op_ptr->opt[i + 1] = op_ptr->opt[i];
 			}
 		}
 		else if (cmd->command == CMD_BUY_STAT)

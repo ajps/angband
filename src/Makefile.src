@@ -40,7 +40,6 @@ HEADERS = \
 	cmds.h \
 	config.h \
 	effects.h \
-	externs.h \
 	game-cmd.h \
 	game-event.h \
 	guid.h \
@@ -194,18 +193,16 @@ ANGFILES = \
 	ui.o \
 	ui-birth.o \
 	ui-event.o \
+	ui-game.o \
 	ui-input.o \
 	ui-knowledge.o \
 	ui-menu.o \
 	ui-options.o \
 	ui-spell.o \
-	variable.o \
 	wiz-spoil.o \
 	wiz-stats.o \
 	wizard.o \
 	x-spell.o \
-	xtra2.o \
-	xtra3.o \
         lua-init.o \
         lua-cmd.o \
         lua-objects.o \

@@ -21,6 +21,8 @@
 #include "attack.h"
 #include "effects.h"
 #include "cmds.h"
+#include "init.h"
+#include "monster.h"
 #include "obj-identify.h"
 #include "obj-info.h"
 #include "obj-make.h"
@@ -30,6 +32,7 @@
 #include "obj-tvalsval.h"
 #include "obj-util.h"
 #include "project.h"
+#include "tables.h"
 #include "z-textblock.h"
 
 /*

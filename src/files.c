@@ -20,9 +20,11 @@
 #include "cave.h"
 #include "cmds.h"
 #include "death.h"
+#include "dungeon.h"
 #include "files.h"
 #include "game-cmd.h"
 #include "history.h"
+#include "init.h"
 #include "obj-desc.h"
 #include "obj-identify.h"
 #include "obj-info.h"
@@ -30,8 +32,14 @@
 #include "obj-ui.h"
 #include "obj-util.h"
 #include "option.h"
+#include "player.h"
 #include "savefile.h"
+#include "score.h"
+#include "store.h"
+#include "signals.h"
+#include "ui-game.h"
 #include "ui-menu.h"
+#include "ui.h"
 
 
 /** Panel utilities **/
@@ -1115,18 +1123,18 @@ errr file_character(const char *path, bool full)
 	file_putf(fp, "  [Options]\n\n");
 
 	/* Dump options */
-	for (i = 0; i < OPT_PAGE_MAX - 1; i++) {
-		int j;
+	for (i = 0; i < OP_MAX; i++) {
+		int opt;
 		const char *title = "";
 		switch (i) {
-			case 0: title = "User interface"; break;
-			case 1: title = "Birth"; break;
+			case OP_INTERFACE: title = "User interface"; break;
+			case OP_BIRTH: title = "Birth"; break;
+		    default: continue;
 		}
 
 		file_putf(fp, "  [%s]\n\n", title);
-		for (j = 0; j < OPT_PAGE_PER; j++) {
-			int opt = option_page[i][j];
-			if (!option_name(opt)) continue;
+		for (opt = 0; opt < OPT_MAX; opt++) {
+			if (option_type(opt) != i) continue;
 
 			file_putf(fp, "%-45s: %s (%s)\n",
 			        option_desc(opt),

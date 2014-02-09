@@ -18,6 +18,7 @@
  */
 #include "angband.h"
 #include "cmds.h"
+#include "init.h"
 #include "ui-menu.h"
 #include "obj-desc.h"
 #include "obj-identify.h"
@@ -26,6 +27,7 @@
 #include "obj-tvalsval.h"
 #include "obj-ui.h"
 #include "obj-util.h"
+#include "object.h"
 #include "squelch.h"
 
 

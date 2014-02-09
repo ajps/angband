@@ -17,6 +17,8 @@
  */
 #include <errno.h>
 #include "angband.h"
+#include "dungeon.h"
+#include "init.h"
 #include "savefile.h"
 
 /**
@@ -70,6 +72,12 @@
 /** Magic bits at beginning of savefile */
 static const byte savefile_magic[4] = { 83, 97, 118, 101 };
 static const byte savefile_name[4] = "VNLA";
+
+/*
+ * Buffer to hold the current savefile name
+ */
+char savefile[1024];
+
 
 /* Some useful types */
 typedef int (*loader_t)(void);
@@ -613,7 +621,6 @@ static int get_desc(void) {
  * Try to get the 'description' block from a savefile.  Fail gracefully.
  */
 const char *savefile_get_description(const char *path) {
-	errr err;
 	struct blockheader b;
 
 	ang_file *f = file_open(path, MODE_READ, FTYPE_TEXT);
@@ -625,7 +632,7 @@ const char *savefile_get_description(const char *path) {
 	if (!check_header(f)) {
 		my_strcpy(savefile_desc, "Invalid savefile", sizeof savefile_desc);
 	} else {
-		while ((err = next_blockheader(f, &b)) == 0) {
+		while (!next_blockheader(f, &b)) {
 			if (!streq(b.name, "description")) {
 				skip_block(f, &b);
 				continue;

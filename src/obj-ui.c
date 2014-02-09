@@ -26,6 +26,8 @@
 #include "obj-tvalsval.h" /* Only for use_flavor_glyph() */
 #include "obj-ui.h"
 #include "obj-util.h"
+#include "store.h"
+#include "ui-game.h"
 
 /*
  * Determine if the attr and char should consider the item's flavor
@@ -1452,14 +1454,7 @@ bool get_item(int *cp, const char *pmt, const char *str, cmd_code cmd, item_test
 
 	/* Fix the screen if necessary */
 	if (show_list)
-	{
-		/* Load screen */
 		screen_load();
-
-		/* Hack -- Cancel "display" */
-		show_list = FALSE;
-	}
-
 
 	/* Toggle again if needed */
 	if (toggle) toggle_inven_equip();

@@ -21,6 +21,7 @@
 #include "cmds.h"
 #include "effects.h"
 #include "files.h"
+#include "init.h"
 #include "mon-lore.h"
 #include "mon-make.h"
 #include "mon-util.h"
@@ -32,13 +33,15 @@
 #include "obj-tval.h"
 #include "obj-ui.h"
 #include "obj-util.h"
+#include "object.h"
 #include "project.h"
 #include "spells.h"
 #include "target.h"
 #include "ui-event.h"
+#include "ui-game.h"
+#include "ui-input.h"
 #include "ui-menu.h"
 #include "wizard.h"
-#include "z-term.h"
 
 
 static void gf_display(menu_type *m, int type, bool cursor,
@@ -1465,7 +1468,6 @@ static void do_cmd_wiz_query(void)
 		case 's': mask |= (SQUARE_SEEN); break;
 		case 'v': mask |= (SQUARE_VIEW); break;
 		case 't': mask |= (SQUARE_WASSEEN); break;
-		case 'w': mask |= (SQUARE_WALL); break;
 	}
 
 	/* Scan map */

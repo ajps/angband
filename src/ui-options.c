@@ -19,6 +19,7 @@
  */
 #include "angband.h"
 #include "cmds.h"
+#include "init.h"
 #include "keymap.h"
 #include "squelch.h"
 #include "prefs.h"
@@ -26,6 +27,11 @@
 #include "obj-tvalsval.h"
 #include "obj-tval.h"
 #include "obj-util.h"
+#include "object.h"
+#include "tables.h"
+#include "target.h"
+#include "ui-game.h"
+#include "ui-input.h"
 #include "ui-menu.h"
 #include "ui-options.h"
 #include "files.h"
@@ -114,8 +120,9 @@ static bool option_toggle_handle(menu_type *m, const ui_event *event,
 
 	if (event->type == EVT_SELECT) {
 		/* Hack -- birth options can not be toggled after birth */
-		/* At birth, m->flags == MN_DBL_TAP. After birth, m->flags == MN_NO_TAGS */
-		if (!(OPT_BIRTH <= oid && oid <= OPT_BIRTH + N_OPTS_BIRTH - 1 && m->flags == MN_NO_TAGS)) {
+		/* At birth, m->flags == MN_DBL_TAP. */
+		/* After birth, m->flags == MN_NO_TAGS */
+		if (!((option_type(oid) == OP_BIRTH) && (m->flags == MN_NO_TAGS))) {
 			option_set(option_name(oid), !op_ptr->opt[oid]);
 		}
 	} else if (event->type == EVT_KBRD) {
@@ -185,7 +192,7 @@ static void option_toggle_menu(const char *name, int page)
 
 	/* Find the number of valid entries */
 	for (i = 0; i < OPT_PAGE_PER; i++) {
-		if (option_page[page][i] == OPT_NONE)
+		if (option_page[page][i] == OPT_none)
 			break;
 	}
 

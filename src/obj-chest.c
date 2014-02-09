@@ -18,6 +18,7 @@
  */
 
 #include "angband.h"
+#include "cave.h"
 #include "obj-chest.h"
 #include "obj-identify.h"
 #include "obj-make.h"
@@ -25,6 +26,8 @@
 #include "obj-tvalsval.h"
 #include "obj-util.h"
 #include "mon-util.h" /* for summon_specific() */
+#include "spells.h"
+#include "tables.h"
 
 /*
  * Each chest has a certain set of traps, determined by pval
@@ -199,7 +202,7 @@ s16b chest_check(int y, int x, enum chest_query check_type)
  */
 int count_chests(int *y, int *x, enum chest_query check_type)
 {
-	int d, count, o_idx;
+	int d, count;
 
 	/* Count how many matches */
 	count = 0;
@@ -212,7 +215,7 @@ int count_chests(int *y, int *x, enum chest_query check_type)
 		int xx = player->px + ddx_ddd[d];
 
 		/* No (visible) chest is there */
-		if ((o_idx = chest_check(yy, xx, check_type)) == 0) continue;
+		if (chest_check(yy, xx, check_type) == 0) continue;
 
 		/* Count it */
 		++count;

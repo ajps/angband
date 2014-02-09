@@ -19,6 +19,7 @@
 #include "angband.h"
 #include "cave.h"
 #include "game-cmd.h"
+#include "keymap.h"
 #include "mon-lore.h"
 #include "mon-util.h"
 #include "monster.h"
@@ -27,7 +28,9 @@
 #include "obj-util.h"
 #include "project.h"
 #include "squelch.h"
+#include "tables.h"
 #include "target.h"
+#include "trap.h"
 
 /*
  * Height of the help screen; any higher than 4 will overlap the health
@@ -49,6 +52,87 @@ static s16b target_x, target_y;
 #define TS_INITIAL_SIZE	20
 
 /*** Functions ***/
+
+/*
+ * Given a "source" and "target" location, extract a "direction",
+ * which will move one step from the "source" towards the "target".
+ *
+ * Note that we use "diagonal" motion whenever possible.
+ *
+ * We return "5" if no motion is needed.
+ *
+ * XXX Change params to use two struct loc.
+ */
+int motion_dir(int y1, int x1, int y2, int x2)
+{
+	/* No movement required */
+	if ((y1 == y2) && (x1 == x2)) return (DIR_NONE);
+
+	/* South or North */
+	if (x1 == x2) return ((y1 < y2) ? 2 : 8);
+
+	/* East or West */
+	if (y1 == y2) return ((x1 < x2) ? 6 : 4);
+
+	/* South-east or South-west */
+	if (y1 < y2) return ((x1 < x2) ? 3 : 1);
+
+	/* North-east or North-west */
+	if (y1 > y2) return ((x1 < x2) ? 9 : 7);
+
+	/* Paranoia */
+	return (5);
+}
+
+
+/*
+ * Extract a direction (or zero) from a character
+ */
+int target_dir(struct keypress ch)
+{
+	return target_dir_allow(ch, FALSE);
+}
+
+int target_dir_allow(struct keypress ch, bool allow_5)
+{
+	int d = 0;
+
+	/* Already a direction? */
+	if (isdigit((unsigned char)ch.code)) {
+		d = D2I(ch.code);
+	} else if (isarrow(ch.code)) {
+		switch (ch.code) {
+			case ARROW_DOWN:  d = 2; break;
+			case ARROW_LEFT:  d = 4; break;
+			case ARROW_RIGHT: d = 6; break;
+			case ARROW_UP:    d = 8; break;
+		}
+	} else {
+		int mode;
+		const struct keypress *act;
+
+		if (OPT(rogue_like_commands))
+			mode = KEYMAP_MODE_ROGUE;
+		else
+			mode = KEYMAP_MODE_ORIG;
+
+		/* XXX see if this key has a digit in the keymap we can use */
+		act = keymap_find(mode, ch);
+		if (act) {
+			const struct keypress *cur;
+			for (cur = act; cur->type == EVT_KBRD; cur++) {
+				if (isdigit((unsigned char) cur->code))
+					d = D2I(cur->code);
+			}
+		}
+	}
+
+	/* Paranoia */
+	if (d == 5 && !allow_5) d = 0;
+
+	/* Return direction */
+	return (d);
+}
 
 /*
  * Monster health description
@@ -1191,7 +1275,7 @@ static int draw_path(u16b path_n, u16b *path_g, wchar_t *c, int *a, int y1, int 
 			/* Known objects are yellow. */
 			colour = TERM_YELLOW;
 
-		else if ((!square_ispassable(cave, y,x) &&
+		else if ((!square_isprojectable(cave, y,x) &&
 				  sqinfo_has(cave->info[y][x], SQUARE_MARK)) || player_can_see_bold(y,x))
 			/* Known walls are blue. */
 			colour = TERM_BLUE;
@@ -1650,23 +1734,21 @@ bool target_set_interactive(int mode, int x, int y)
 					y = KEY_GRID_Y(press);//.mouse.y;
 					x = KEY_GRID_X(press);//.mouse.x;
 				  
-					if (Term) {
-						if (press.mouse.y <= 1) {
-							/* move the screen north */
-							y--;
-						} else
-						if (press.mouse.y >= (Term->hgt - 2)) {
-							/* move the screen south */
-							y++;
-						} else
-						if (press.mouse.x <= COL_MAP) {
-							/* move the screen in west */
-							x--;
-						} else
-						if (press.mouse.x >= (Term->wid - 2)) {
-							/* move the screen east */
-							x++;
-						}
+					if (press.mouse.y <= 1) {
+						/* move the screen north */
+						y--;
+					} else
+					if (press.mouse.y >= (Term->hgt - 2)) {
+						/* move the screen south */
+						y++;
+					} else
+					if (press.mouse.x <= COL_MAP) {
+						/* move the screen in west */
+						x--;
+					} else
+					if (press.mouse.x >= (Term->wid - 2)) {
+						/* move the screen east */
+						x++;
 					}
           
 					if (y < 0) y = 0;

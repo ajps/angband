@@ -17,6 +17,8 @@
  *    are included in all such copies.  Other copyrights may also apply.
  */
 #include "angband.h"
+#include "tables.h"
+#include "target.h"
 #include "ui-event.h"
 #include "ui-menu.h"
 
@@ -1009,7 +1011,7 @@ int menu_dynamic_select(menu_type *m)
 void menu_dynamic_free(menu_type *m)
 {
 	struct menu_entry *entry = menu_priv(m);
-	if (entry) {
+	while (entry) {
 		struct menu_entry *next = entry->next;
 		string_free(entry->text);
 		mem_free(entry);

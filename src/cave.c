@@ -18,17 +18,25 @@
 
 #include "angband.h"
 #include "cave.h"
-#include "game-event.h"
+#include "cmds.h"
+#include "dungeon.h"
 #include "game-cmd.h"
+#include "game-event.h"
+#include "grafmode.h"
+#include "init.h"
 #include "mon-util.h"
+#include "monster.h"
 #include "obj-tval.h"
 #include "obj-ui.h"
 #include "obj-util.h"
+#include "object.h"
+#include "prefs.h"
 #include "project.h"
 #include "squelch.h"
-#include "cmds.h"
+#include "tables.h"
 #include "trap.h"
-#include "grafmode.h"
+
+feature_type *f_info;
 
 /*
  * Approximate distance between two points.
@@ -131,7 +139,7 @@ bool los(int y1, int x1, int y2, int x2)
 		{
 			for (ty = y1 + 1; ty < y2; ty++)
 			{
-				if (!square_ispassable(cave, ty, x1)) return (FALSE);
+				if (!square_isprojectable(cave, ty, x1)) return (FALSE);
 			}
 		}
 
@@ -140,7 +148,7 @@ bool los(int y1, int x1, int y2, int x2)
 		{
 			for (ty = y1 - 1; ty > y2; ty--)
 			{
-				if (!square_ispassable(cave, ty, x1)) return (FALSE);
+				if (!square_isprojectable(cave, ty, x1)) return (FALSE);
 			}
 		}
 
@@ -156,7 +164,7 @@ bool los(int y1, int x1, int y2, int x2)
 		{
 			for (tx = x1 + 1; tx < x2; tx++)
 			{
-				if (!square_ispassable(cave, y1, tx)) return (FALSE);
+				if (!square_isprojectable(cave, y1, tx)) return (FALSE);
 			}
 		}
 
@@ -165,7 +173,7 @@ bool los(int y1, int x1, int y2, int x2)
 		{
 			for (tx = x1 - 1; tx > x2; tx--)
 			{
-				if (!square_ispassable(cave, y1, tx)) return (FALSE);
+				if (!square_isprojectable(cave, y1, tx)) return (FALSE);
 			}
 		}
 
@@ -183,7 +191,7 @@ bool los(int y1, int x1, int y2, int x2)
 	{
 		if (ay == 2)
 		{
-			if (square_ispassable(cave, y1 + sy, x1)) return (TRUE);
+			if (square_isprojectable(cave, y1 + sy, x1)) return (TRUE);
 		}
 	}
 
@@ -192,7 +200,7 @@ bool los(int y1, int x1, int y2, int x2)
 	{
 		if (ax == 2)
 		{
-			if (square_ispassable(cave, y1, x1 + sx)) return (TRUE);
+			if (square_isprojectable(cave, y1, x1 + sx)) return (TRUE);
 		}
 	}
 
@@ -227,7 +235,7 @@ bool los(int y1, int x1, int y2, int x2)
 		/* the LOS exactly meets the corner of a tile. */
 		while (x2 - tx)
 		{
-			if (!square_ispassable(cave, ty, tx)) return (FALSE);
+			if (!square_isprojectable(cave, ty, tx)) return (FALSE);
 
 			qy += m;
 
@@ -238,7 +246,7 @@ bool los(int y1, int x1, int y2, int x2)
 			else if (qy > f2)
 			{
 				ty += sy;
-				if (!square_ispassable(cave, ty, tx)) return (FALSE);
+				if (!square_isprojectable(cave, ty, tx)) return (FALSE);
 				qy -= f1;
 				tx += sx;
 			}
@@ -274,7 +282,7 @@ bool los(int y1, int x1, int y2, int x2)
 		/* the LOS exactly meets the corner of a tile. */
 		while (y2 - ty)
 		{
-			if (!square_ispassable(cave, ty, tx)) return (FALSE);
+			if (!square_isprojectable(cave, ty, tx)) return (FALSE);
 
 			qx += m;
 
@@ -285,7 +293,7 @@ bool los(int y1, int x1, int y2, int x2)
 			else if (qx > f2)
 			{
 				tx += sx;
-				if (!square_ispassable(cave, ty, tx)) return (FALSE);
+				if (!square_isprojectable(cave, ty, tx)) return (FALSE);
 				qx -= f1;
 				ty += sy;
 			}
@@ -887,16 +895,16 @@ void map_info(unsigned y, unsigned x, grid_data *g)
 	/* Rare random hallucination on non-outer walls */
 	if (g->hallucinate && g->m_idx == 0 && g->first_kind == 0)
 	{
-		if (one_in_(128) && g->f_idx != FEAT_PERM_SOLID)
+		if (one_in_(128) && g->f_idx != FEAT_PERM)
 			g->m_idx = 1;
-		else if (one_in_(128) && g->f_idx != FEAT_PERM_SOLID)
+		else if (one_in_(128) && g->f_idx != FEAT_PERM)
 			/* if hallucinating, we just need first_kind to not be NULL */
 			g->first_kind = k_info;
 		else
 			g->hallucinate = FALSE;
 	}
 
-	assert(g->f_idx <= FEAT_PERM_SOLID);
+	assert(g->f_idx <= FEAT_PERM);
 	if (!g->hallucinate)
 		assert((int)g->m_idx < cave->mon_max);
 	/* All other g fields are 'flags', mostly booleans. */
@@ -1517,11 +1525,6 @@ void do_cmd_view_map(void)
  * the player's torch.  This flag has special semantics for wall grids 
  * (see "update_view()").
  *
- * The "SQUARE_WALL" flag is used to determine which grids block the player's
- * line of sight.  This flag is used by the "update_view()" function to
- * determine which grids block line of sight, and to help determine which
- * grids can be "seen" by the player.  This flag must be very fast.
- *
  * The "SQUARE_VIEW" flag is used to determine which grids are currently in
  * line of sight of the player.  This flag is set by (and used by) the
  * "update_view()" function.  This flag is used by any code which needs to
@@ -1537,7 +1540,7 @@ void do_cmd_view_map(void)
  * The "SQUARE_SEEN" flag is used to determine which grids are currently in
  * line of sight of the player and also illuminated in some way.  This flag
  * is set by the "update_view()" function, using computations based on the
- * "SQUARE_VIEW" and "SQUARE_WALL" and "SQUARE_GLOW" flags of various grids.  
+ * "SQUARE_VIEW" and "SQUARE_GLOW" flags and terrain of various grids.  
  * This flag is used by any code which needs to know if the player can "see" a
  * given grid.  This flag is used by the "map_info()" function both to see
  * if a given "boring" grid can be seen by the player, and for some optional
@@ -1545,10 +1548,10 @@ void do_cmd_view_map(void)
  * abstraction around this flag, but certain code idioms are much more
  * efficient.  This flag is used to see if certain monsters are "visible" to
  * the player.  This flag is never set for a grid unless "SQUARE_VIEW" is also
- * set for the grid.  Whenever the "SQUARE_WALL" or "SQUARE_GLOW" flag changes
+ * set for the grid.  Whenever the terrain or "SQUARE_GLOW" flag changes
  * for a grid which has the "SQUARE_VIEW" flag set, the "SQUARE_SEEN" flag must
  * be recalculated.  The simplest way to do this is to call "forget_view()"
- * and "update_view()" whenever the "SQUARE_WALL" or "SQUARE_GLOW" flags change
+ * and "update_view()" whenever the terrain or "SQUARE_GLOW" flag changes
  * for a grid which has "SQUARE_VIEW" set.
  *
  * The "SQUARE_WASSEEN" flag is used for a variety of temporary purposes.  This
@@ -1608,8 +1611,8 @@ void do_cmd_view_map(void)
  * some way.  However, for the player to "see" the grid, as determined by
  * the "SQUARE_SEEN" flag, the player must not be blind, the grid must have
  * the "SQUARE_VIEW" flag set, and if the grid is a "wall" grid, and it is
- * not lit by the player's torch, then it must touch a grid which does not
- * have the "SQUARE_WALL" flag set, but which does have both the "SQUARE_GLOW"
+ * not lit by the player's torch, then it must touch a projectable grid 
+ * which has both the "SQUARE_GLOW"
  * and "SQUARE_VIEW" flags set.  This last part about wall grids is induced
  * by the semantics of "SQUARE_GLOW" as applied to wall grids, and checking
  * the technical requirements can be very expensive, especially since the
@@ -1718,7 +1721,7 @@ static void add_monster_lights(struct cave *c, struct loc from)
 				int sx = m->fx + j;
 				
 				/* If the monster isn't visible we can only light open tiles */
-				if (!in_los && !square_ispassable(cave, sy, sx))
+				if (!in_los && !square_isprojectable(cave, sy, sx))
 					continue;
 
 				/* If the tile is too far away we won't light it */
@@ -2249,8 +2252,6 @@ struct feature *square_feat(struct cave *c, int y, int x)
 
 void square_set_feat(struct cave *c, int y, int x, int feat)
 {
-	feature_type *f_ptr = &f_info[feat];
-
 	assert(c);
 	assert(y >= 0 && y < DUNGEON_HGT);
 	assert(x >= 0 && x < DUNGEON_WID);
@@ -2258,11 +2259,6 @@ void square_set_feat(struct cave *c, int y, int x, int feat)
 	 * honors those... */
 
 	c->feat[y][x] = feat;
-
-	if (!tf_has(f_ptr->flags, TF_PROJECT))
-		sqinfo_on(c->info[y][x], SQUARE_WALL);
-	else
-		sqinfo_off(c->info[y][x], SQUARE_WALL);
 
 	if (character_dungeon) {
 		square_note_spot(c, y, x);
@@ -2408,7 +2404,7 @@ int project_path(u16b *gp, int range, int y1, int x1, int y2, int x2, int flg)
 			}
 
 			/* Always stop at non-initial wall grids */
-			if ((n > 0) && !square_ispassable(cave, y, x)) break;
+			if ((n > 0) && !square_isprojectable(cave, y, x)) break;
 
 			/* Sometimes stop at non-initial monsters/players */
 			if (flg & (PROJECT_STOP))
@@ -2470,7 +2466,7 @@ int project_path(u16b *gp, int range, int y1, int x1, int y2, int x2, int flg)
 			}
 
 			/* Always stop at non-initial wall grids */
-			if ((n > 0) && !square_ispassable(cave, y, x)) break;
+			if ((n > 0) && !square_isprojectable(cave, y, x)) break;
 
 			/* Sometimes stop at non-initial monsters/players */
 			if (flg & (PROJECT_STOP))
@@ -2526,7 +2522,7 @@ int project_path(u16b *gp, int range, int y1, int x1, int y2, int x2, int flg)
 			}
 
 			/* Always stop at non-initial wall grids */
-			if ((n > 0) && !square_ispassable(cave, y, x)) break;
+			if ((n > 0) && !square_isprojectable(cave, y, x)) break;
 
 			/* Sometimes stop at non-initial monsters/players */
 			if (flg & (PROJECT_STOP))
@@ -2742,9 +2738,6 @@ bool square_isrock(struct cave *c, int y, int x) {
 
 /**
  * True if the square is a permanent wall.
- *
- * FEAT_PERM_SOLID is the normal feature type. The others are weird byproducts
- * of cave generation (and should be avoided).
  */
 bool square_isperm(struct cave *c, int y, int x) {
 	return (tf_has(f_info[c->feat[y][x]].flags, TF_PERMANENT) &&
@@ -2990,8 +2983,6 @@ bool feat_ispassable(feature_type *f_ptr) {
 
 /**
  * True if the square is passable by the player.
- *
- * This function is the logical negation of square_iswall().
  */
 bool square_ispassable(struct cave *c, int y, int x) {
 	assert(square_in_bounds(c, y, x));
@@ -2999,13 +2990,30 @@ bool square_ispassable(struct cave *c, int y, int x) {
 }
 
 /**
+ * True if any projectable can pass through the feature.
+ */
+bool feat_isprojectable(feature_type *f_ptr) {
+	return tf_has(f_ptr->flags, TF_PROJECT);
+}
+
+/**
+ * True if any projectable can pass through the square.
+ *
+ * This function is the logical negation of square_iswall().
+ */
+bool square_isprojectable(struct cave *c, int y, int x) {
+	assert(square_in_bounds(c, y, x));
+	return feat_isprojectable(&f_info[c->feat[y][x]]);
+}
+
+/**
  * True if the square is a wall square (impedes the player).
  *
- * This function is the logical negation of square_ispassable().
+ * This function is the logical negation of square_isprojectable().
  */
 bool square_iswall(struct cave *c, int y, int x) {
 	assert(square_in_bounds(c, y, x));
-	return sqinfo_has(c->info[y][x], SQUARE_WALL);
+	return !square_isprojectable(c, y, x);
 }
 
 /**
@@ -3218,7 +3226,7 @@ void square_destroy(struct cave *c, int y, int x) {
 	int r = randint0(200);
 
 	if (r < 20)
-		feat = FEAT_WALL_EXTRA;
+		feat = FEAT_GRANITE;
 	else if (r < 70)
 		feat = FEAT_QUARTZ;
 	else if (r < 100)
@@ -3237,7 +3245,7 @@ void square_earthquake(struct cave *c, int y, int x) {
 	}
 
 	if (t < 20)
-		f = FEAT_WALL_EXTRA;
+		f = FEAT_GRANITE;
 	else if (t < 70)
 		f = FEAT_QUARTZ;
 	else

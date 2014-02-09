@@ -23,12 +23,15 @@
 #include "files.h"
 #include "game-cmd.h"
 #include "keymap.h"
+#include "monster.h"
 #include "textui.h"
 #include "ui-event.h"
 #include "ui-menu.h"
 #include "wizard.h"
 #include "target.h"
 #include "obj-util.h"
+#include "ui-game.h"
+#include "ui-input.h"
 
 /*
  * This file contains (several) big lists of commands, so that they can be

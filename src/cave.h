@@ -89,14 +89,11 @@ struct monster;
 #define FEAT_QUARTZ_K 0x37
 
 /* Walls */
-#define FEAT_WALL_EXTRA 0x38
+#define FEAT_GRANITE 0x38
 #define FEAT_WALL_INNER 0x39
 #define FEAT_WALL_OUTER 0x3A
 #define FEAT_WALL_SOLID 0x3B
-#define FEAT_PERM_EXTRA 0x3C
-#define FEAT_PERM_INNER 0x3D
-#define FEAT_PERM_OUTER 0x3E
-#define FEAT_PERM_SOLID 0x3F
+#define FEAT_PERM 0x3C
 
 
 
@@ -177,6 +174,8 @@ typedef struct feature
 	byte x_attr[4];   /**< Desired feature attribute (set by user/pref file) */
 	wchar_t x_char[4];   /**< Desired feature character (set by user/pref file) */
 } feature_type;
+
+extern feature_type *f_info;
 
 enum grid_light_level
 {
@@ -325,10 +324,12 @@ extern bool square_isopen(struct cave *c, int y, int x);
 extern bool square_isempty(struct cave *c, int y, int x);
 extern bool square_canputitem(struct cave *c, int y, int x);
 extern bool square_isdiggable(struct cave *c, int y, int x);
-extern bool feat_ispassable(feature_type *f_ptr);
 extern bool feat_is_monster_walkable(feature_type *feature);
 extern bool square_is_monster_walkable(struct cave *c, int y, int x);
+extern bool feat_ispassable(feature_type *f_ptr);
 extern bool square_ispassable(struct cave *c, int y, int x);
+extern bool feat_isprojectable(feature_type *f_ptr);
+extern bool square_isprojectable(struct cave *c, int y, int x);
 extern bool square_iswall(struct cave *c, int y, int x);
 extern bool square_isstrongwall(struct cave *c, int y, int x);
 extern bool square_isvault(struct cave *c, int y, int x);

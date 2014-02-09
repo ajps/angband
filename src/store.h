@@ -1,6 +1,7 @@
 #ifndef INCLUDED_STORE_H
 #define INCLUDED_STORE_H
 
+#include "object.h"
 #include "parser.h"
 
 extern bool store_in_store;
@@ -24,6 +25,8 @@ enum
 	STORE_HOME	= 7,
 	MAX_STORES	= 8
 };
+
+extern int store_knowledge;
 
 typedef struct owner {
 	unsigned int oidx;
@@ -58,6 +61,8 @@ struct store {
 	int normal_stock_max;
 };
 
+extern struct store *stores;
+
 void store_init(void);
 void free_stores(void);
 void store_reset(void);
@@ -70,5 +75,6 @@ extern struct owner *store_ownerbyidx(struct store *s, unsigned int idx);
 struct parser *init_parse_stores(void);
 extern struct parser *store_parser_new(void);
 extern struct parser *store_owner_parser_new(struct store *stores);
+void do_cmd_store_knowledge(void);
 
 #endif /* INCLUDED_STORE_H */

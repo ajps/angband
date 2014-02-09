@@ -37,6 +37,8 @@
 #include "obj-util.h"
 #include "mon-lore.h"
 #include "mon-util.h"
+#include "store.h"
+#include "ui-input.h"
 
 #define ADD_LABEL(text, cmd, valid) { \
 	cmdkey = cmd_lookup_key_unktrl((cmd), mode); \

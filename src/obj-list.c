@@ -17,6 +17,8 @@
  *    are included in all such copies.  Other copyrights may also apply.
  */
 #include "angband.h"
+#include "dungeon.h"
+#include "init.h"
 #include "obj-desc.h"
 #include "obj-identify.h"
 #include "obj-list.h"
@@ -80,7 +82,6 @@ static void object_list_free(object_list_t *list)
 	}
 
 	FREE(list);
-	list = NULL;
 }
 
 /**

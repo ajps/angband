@@ -23,6 +23,7 @@
 #include "z-bitflag.h"
 #include "z-rand.h"
 #include "cave.h"
+#include "mon-constants.h"
 #include "mon-timed.h"
 #include "mon-blow-methods.h"
 #include "mon-blow-effects.h"
@@ -80,7 +81,9 @@ typedef struct monster_pain
 	
 	struct monster_pain *next;
 } monster_pain;
- 
+
+extern monster_pain *pain_messages;
+
 /*
  * Information about "base" monster type.
  */
@@ -98,6 +101,8 @@ typedef struct monster_base
 
 	monster_pain *pain;		/* Pain messages */
 } monster_base;
+
+extern monster_base *rb_info;
 
 /* Information about specified monster drops */ 
 struct monster_drop {
@@ -211,6 +216,7 @@ typedef struct monster_race
 	struct monster_mimic *mimic_kinds;
 } monster_race;
 
+extern monster_race *r_info;
 
 /*
  * Monster "lore" information
@@ -244,6 +250,10 @@ typedef struct
 	bitflag spell_flags[RSF_SIZE];  /* Observed racial spell flags */
 } monster_lore;
 
+/*
+ * Array[z_info->r_max] of monster lore
+ */
+extern monster_lore *l_list;
 
 
 /*

@@ -26,6 +26,17 @@
 #include "obj-pval.h"
 #include "obj-util.h"
 
+const char *inscrip_text[] =
+{
+	NULL,
+	"strange",
+	"average",
+	"magical",
+	"splendid",
+	"excellent",
+	"special",
+	"unknown"
+};
 
 /**
  * Puts the object base kind's name into buf.
@@ -154,7 +165,7 @@ static size_t obj_desc_name_prefix(char *buf, size_t max, size_t end,
 		const object_type *o_ptr, bool known, const char *basename,
 		const char *modstr, bool terse)
 {
-	if (o_ptr->number <= 0)
+	if (o_ptr->number == 0)
 		strnfcat(buf, max, &end, "no more ");
 	else if (o_ptr->number > 1)
 		strnfcat(buf, max, &end, "%d ", o_ptr->number);

@@ -20,7 +20,9 @@
 #include "dungeon.h"
 #include "files.h"
 #include "init.h"
+#include "prefs.h"
 #include "savefile.h"
+#include "signals.h"
 
 /* locale junk */
 #include "locale.h"

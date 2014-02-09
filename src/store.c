@@ -21,8 +21,10 @@
 #include "cave.h"
 #include "cmds.h"
 #include "game-event.h"
+#include "hint.h"
 #include "history.h"
 #include "init.h"
+#include "monster.h"
 #include "obj-desc.h"
 #include "obj-identify.h"
 #include "obj-info.h"
@@ -36,10 +38,28 @@
 #include "store.h"
 #include "target.h"
 #include "textui.h"
+#include "ui-game.h"
+#include "ui-input.h"
 #include "ui-menu.h"
 #include "z-debug.h"
 
 /*** Constants and definitions ***/
+
+/*
+ * Array[MAX_STORES] of stores
+ */
+struct store *stores;
+
+/*
+ * Flag to override which store is selected if in a knowledge menu
+ */
+int store_knowledge = STORE_NONE;
+
+/*
+ * The hints array
+ */
+struct hint *hints;
+
 
 /* Easy names for the elements of the 'scr_places' arrays. */
 enum
@@ -416,7 +436,16 @@ static bool store_can_carry(struct store *store, struct object_kind *kind) {
 	return store_is_staple(store, kind);
 }
 
-
+/* Return a random hint from the global hints list */
+char* random_hint(void)
+{
+	struct hint *v, *r = NULL;
+	int n;
+	for (v = hints, n = 1; v; v = v->next, n++)
+		if (one_in_(n))
+			r = v;
+	return r->hint;
+}
 
 /*
  * The greeting a shopkeeper gives the character says a lot about his
@@ -1564,10 +1593,6 @@ void store_maint(struct store *s)
 		 */
 		int min = 0;
 		int max = s->normal_stock_max;
-
-		/* Sell a few items */
-		stock = s->stock_num;
-		stock -= randint1(s->turnover);
 
 		if (stock < min) stock = min;
 		if (stock > max) stock = max;

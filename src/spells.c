@@ -21,6 +21,7 @@
 #include "dungeon.h"
 #include "generate.h"
 #include "history.h"
+#include "init.h"
 #include "mon-lore.h"
 #include "mon-make.h"
 #include "mon-timed.h"
@@ -35,9 +36,11 @@
 #include "obj-tvalsval.h"
 #include "obj-ui.h"
 #include "obj-util.h"
+#include "object.h"
 #include "project.h"
 #include "spells.h"
 #include "squelch.h"
+#include "tables.h"
 #include "target.h"
 #include "trap.h"
 
@@ -2755,7 +2758,7 @@ static void light_room(int y1, int x1, bool light)
 		x = ps->pts[i].x, y = ps->pts[i].y;
 
 		/* Walls get lit, but stop light */
-		if (!square_ispassable(cave, y, x)) continue;
+		if (!square_isprojectable(cave, y, x)) continue;
 
 		/* Spread adjacent */
 		cave_room_aux(ps, y + 1, x);
