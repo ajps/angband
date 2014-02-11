@@ -468,9 +468,9 @@ static void do_side_effects(int spell, int dam, struct monster *m_ptr, bool seen
 					case S_SPIDER: case S_HOUND: case S_HYDRA: case S_AINU:
 					case S_ANIMAL:
 					case S_DEMON: case S_HI_DEMON:
-					case S_UNDEAD: case S_HI_UNDEAD: case S_WRAITH:
-					case S_DRAGON: case S_HI_DRAGON:
-					case S_UNIQUE:
+					case S_UNDEAD: case S_HI_UNDEAD: 
+					case S_DRAGON: case S_HI_DRAGON:					
+					case S_UNIQUE: case S_WRAITH:
 						count = summon_monster_aux(re_ptr->flag, m_ptr, rlev, re_ptr->base.base);
 
 						/* In the special case that uniques or wraiths were summoned but all were dead
@@ -481,6 +481,9 @@ static void do_side_effects(int spell, int dam, struct monster *m_ptr, bool seen
 						if (count && player->timed[TMD_BLIND])
 							msgt(rs_ptr->msgt, "You hear %s appear nearby.",
 								(count > 1 ? "many things" : "something"));
+							
+						if (!count)
+							msg("But nothing comes.");
 
 					default:
 						break;
