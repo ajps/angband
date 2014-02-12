@@ -211,6 +211,26 @@ int lua_object_meta_index(lua_State *L)
 		return push_flags_table(L, 1, o_ptr, OFT_SLAY);
 	} else if (streq(key, "resists")) {
 		return push_flags_table(L, 1, o_ptr, OFT_LRES);
+	} else if (streq(key, "stats")) {
+		return push_flags_table(L, 1, o_ptr, OFT_STAT);
+	} else if (streq(key, "abilities")) {
+		return push_flags_table(L, 1, o_ptr, OFT_PVAL);
+	} else if (streq(key, "kills")) {
+		return push_flags_table(L, 1, o_ptr, OFT_KILL);
+	} else if (streq(key, "brands")) {
+		return push_flags_table(L, 1, o_ptr, OFT_BRAND);
+	} else if (streq(key, "sustains")) {
+		return push_flags_table(L, 1, o_ptr, OFT_SUST);
+	} else if (streq(key, "vulnerable")) {
+		return push_flags_table(L, 1, o_ptr, OFT_VULN);
+	} else if (streq(key, "ignore")) {
+		return push_flags_table(L, 1, o_ptr, OFT_IGNORE);
+	} else if (streq(key, "hates")) {
+		return push_flags_table(L, 1, o_ptr, OFT_HATES);
+	} else if (streq(key, "curses")) {
+		return push_flags_table(L, 1, o_ptr, OFT_CURSE);
+	} else if (streq(key, "bad")) {
+		return push_flags_table(L, 1, o_ptr, OFT_BAD);
 	}
 
 	return 0;
