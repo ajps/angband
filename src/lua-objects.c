@@ -25,6 +25,8 @@
 #include "obj-desc.h"
 #include "obj-pval.h"
 #include "obj-identify.h"
+#include "obj-tval.h"
+#include "project.h"
 
 static struct {
 	u16b index;				/* the OF_ index */
@@ -66,6 +68,7 @@ static s16b get_known_flag(object_type *o_ptr, int flag)
 
 	/* Find out what we know */
 	object_flags_known(o_ptr, flags);
+	dedup_hates_flags(flags);
 
 	if (of_has(flags, flag)) {
 		if (flag_table[flag].pval && object_this_pval_is_visible(o_ptr, which_pval(o_ptr, flag))) {
@@ -110,6 +113,93 @@ static int lua_objects_get_idx(lua_State *L)
 	lua_newobject(L, idx);
 	return 1;
 }
+
+/**
+ * Pushes the nourishment provided by the given object on to the stack.  
+ * If the object is not fully known but can be eaten, this is 'true',
+ * otherwise it is the number of turns of nourishment or nil is this is none.
+ */
+static int push_nourishment(lua_State *L, const object_type *o_ptr)
+{
+	if (tval_can_have_nourishment(o_ptr) && o_ptr->pval[DEFAULT_PVAL]) {
+		if (object_is_known(o_ptr)) {
+			lua_pushnumber(L, o_ptr->pval[DEFAULT_PVAL] / 2);
+		} else {
+			lua_pushboolean(L, TRUE);
+		}
+	} else {
+		lua_pushnil(L);
+	}
+
+	return 1;
+}
+
+/**
+ * Pushes a table containing the number of turns it will take
+ * to dig the diggable terrain types if the given object is
+ * wielded by the player.
+ */
+static int push_digging(lua_State *L, const object_type *o_ptr)
+{
+	enum {
+		DIGGING_RUBBLE = 0,
+		DIGGING_MAGMA,
+		DIGGING_QUARTZ,
+		DIGGING_GRANITE
+	} i;
+
+	player_state st;
+
+	object_type inven[INVEN_TOTAL];
+
+	int sl = wield_slot(o_ptr);
+
+	bitflag f[OF_SIZE];
+
+	int chances[4]; /* These are out of 1600 */
+	static const char *names[4] = { "rubble", "magma", "quartz", "granite" };
+
+	object_flags_known(o_ptr, f);
+
+	if (sl < 0 || (sl != INVEN_WIELD && !of_has(f, OF_TUNNEL))) {
+		lua_pushnil(L);
+		return 1;
+	}
+
+	memcpy(inven, player->inventory, INVEN_TOTAL * sizeof(object_type));
+
+	/*
+	 * Hack -- if we examine a ring that is worn on the right finger,
+	 * we shouldn't put a copy of it on the left finger before calculating
+	 * digging skills.
+	 */
+	if (o_ptr != &player->inventory[INVEN_RIGHT])
+		inven[sl] = *o_ptr;
+
+	calc_bonuses(inven, &st, TRUE);
+
+	chances[DIGGING_RUBBLE] = st.skills[SKILL_DIGGING] * 8;
+	chances[DIGGING_MAGMA] = (st.skills[SKILL_DIGGING] - 10) * 4;
+	chances[DIGGING_QUARTZ] = (st.skills[SKILL_DIGGING] - 20) * 2;
+	chances[DIGGING_GRANITE] = (st.skills[SKILL_DIGGING] - 40) * 1;
+
+	/* Our return value */
+	lua_newtable(L);
+
+	for (i = DIGGING_RUBBLE; i <= DIGGING_GRANITE; i++)
+	{
+		int chance = MAX(0, MIN(1600, chances[i]));
+		int deciturns = chance ? (16000 / chance) : 0;
+
+		if (chance > 0) {
+			lua_pushnumber(L, deciturns / 10);
+			lua_setfield(L, -2, names[i]);
+		}
+	}
+
+	return 1;
+}
+
 
 /**
  * Pushes a table containing flags of the flag type `type` that are 
@@ -204,9 +294,18 @@ int lua_object_meta_index(lua_State *L)
 		object_desc(o_name, sizeof(o_name), o_ptr, ODESC_PREFIX);
 		lua_pushstring(L, o_name);
 		return 1;
-	} else if (streq(key, "known")) {
+	} else if (streq(key, "is_known")) {
 		lua_pushboolean(L, object_is_known(o_ptr));
 		return 1;
+	} else if (streq(key, "effect")) {
+		/* An effect object?  A number? */
+	} else if (streq(key, "type")) {
+	} else if (streq(key, "combat")) {
+		/* too_heavy, blows?, range, damage, breakage, thrown_effect */
+	} else if (streq(key, "nourishment")) {
+		return push_nourishment(L, o_ptr);
+	} else if (streq(key, "digging")) {
+		return push_digging(L, o_ptr);
 	} else if (streq(key, "slays")) {
 		return push_flags_table(L, 1, o_ptr, OFT_SLAY);
 	} else if (streq(key, "resists")) {
@@ -223,7 +322,7 @@ int lua_object_meta_index(lua_State *L)
 		return push_flags_table(L, 1, o_ptr, OFT_SUST);
 	} else if (streq(key, "vulnerable")) {
 		return push_flags_table(L, 1, o_ptr, OFT_VULN);
-	} else if (streq(key, "ignore")) {
+	} else if (streq(key, "ignores")) {
 		return push_flags_table(L, 1, o_ptr, OFT_IGNORE);
 	} else if (streq(key, "hates")) {
 		return push_flags_table(L, 1, o_ptr, OFT_HATES);
@@ -231,6 +330,12 @@ int lua_object_meta_index(lua_State *L)
 		return push_flags_table(L, 1, o_ptr, OFT_CURSE);
 	} else if (streq(key, "bad")) {
 		return push_flags_table(L, 1, o_ptr, OFT_BAD);
+	} else if (streq(key, "protects")) {
+		return push_flags_table(L, 1, o_ptr, OFT_PROT);
+	} else if (streq(key, "misc_magic")) {
+		return push_flags_table(L, 1, o_ptr, OFT_MISC);
+	} else if (streq(key, "knowledge")) {
+		return push_flags_table(L, 1, o_ptr, OFT_INT);
 	}
 
 	return 0;
