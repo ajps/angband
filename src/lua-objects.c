@@ -141,13 +141,7 @@ static int push_nourishment(lua_State *L, const object_type *o_ptr)
  */
 static int push_digging(lua_State *L, const object_type *o_ptr)
 {
-	enum {
-		DIGGING_RUBBLE = 0,
-		DIGGING_MAGMA,
-		DIGGING_QUARTZ,
-		DIGGING_GRANITE
-	} i;
-
+	int i;
 	player_state st;
 
 	object_type inven[INVEN_TOTAL];
@@ -156,7 +150,7 @@ static int push_digging(lua_State *L, const object_type *o_ptr)
 
 	bitflag f[OF_SIZE];
 
-	int chances[4]; /* These are out of 1600 */
+	int chances[DIGGING_MAX]; /* These are out of 1600 */
 	static const char *names[4] = { "rubble", "magma", "quartz", "granite" };
 
 	object_flags_known(o_ptr, f);
@@ -177,18 +171,14 @@ static int push_digging(lua_State *L, const object_type *o_ptr)
 		inven[sl] = *o_ptr;
 
 	calc_bonuses(inven, &st, TRUE);
-
-	chances[DIGGING_RUBBLE] = st.skills[SKILL_DIGGING] * 8;
-	chances[DIGGING_MAGMA] = (st.skills[SKILL_DIGGING] - 10) * 4;
-	chances[DIGGING_QUARTZ] = (st.skills[SKILL_DIGGING] - 20) * 2;
-	chances[DIGGING_GRANITE] = (st.skills[SKILL_DIGGING] - 40) * 1;
+	calc_digging_chances(&st, chances);
 
 	/* Our return value */
 	lua_newtable(L);
 
 	for (i = DIGGING_RUBBLE; i <= DIGGING_GRANITE; i++)
 	{
-		int chance = MAX(0, MIN(1600, chances[i]));
+		int chance = MIN(1600, chances[i]);
 		int deciturns = chance ? (16000 / chance) : 0;
 
 		if (chance > 0) {
