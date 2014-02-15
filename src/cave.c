@@ -551,8 +551,8 @@ void grid_data_as_text(grid_data *g, int *ap, wchar_t *cp, int *tap, wchar_t *tc
 			 && (g->m_idx || g->first_kind)) {
 		/* if there is an object or monster here, and this is a plain floor
 		 * display the border here rather than an overlay below */
-		a = f_info[64].x_attr[g->lighting]; /* 64 is the index of the feat that */
-		c = f_info[64].x_char[g->lighting]; /* holds the trap detect border floor tile */
+		a = f_info[FEAT_DTRAP_FLOOR].x_attr[g->lighting];
+		c = f_info[FEAT_DTRAP_FLOOR].x_char[g->lighting];
 	}
 
 	/* Save the terrain info for the transparency effects */
@@ -739,8 +739,8 @@ void grid_data_as_text(grid_data *g, int *ap, wchar_t *cp, int *tap, wchar_t *tc
 	else if (g->trapborder && (g->f_idx) && !(g->first_kind)
 			 && (use_graphics != GRAPHICS_NONE)) {
 		/* no overlay is used, so we can use the trap border overlay */
-		a = f_info[65].x_attr[g->lighting]; /* 65 is the index of the feat that */
-		c = f_info[65].x_char[g->lighting]; /* holds the trap detect border overlay tile */
+		a = f_info[FEAT_DTRAP_WALL].x_attr[g->lighting];
+		c = f_info[FEAT_DTRAP_WALL].x_char[g->lighting];
 	}
 
 	/* Result */
@@ -2672,18 +2672,30 @@ void disturb(struct player *p, int stop_search, int unused_flag)
 struct cave *cave = NULL;
 
 struct cave *cave_new(void) {
-	struct cave *c = mem_zalloc(sizeof *c);
-	c->info = C_ZNEW(DUNGEON_HGT, grid_256);
-	c->feat = C_ZNEW(DUNGEON_HGT, byte_wid);
-	c->cost = C_ZNEW(DUNGEON_HGT, byte_wid);
-	c->when = C_ZNEW(DUNGEON_HGT, byte_wid);
-	c->m_idx = C_ZNEW(DUNGEON_HGT, s16b_wid);
-	c->o_idx = C_ZNEW(DUNGEON_HGT, s16b_wid);
+	int y, x;
 
-	c->monsters = C_ZNEW(z_info->m_max, struct monster);
+	struct cave *c = mem_zalloc(sizeof *c);
+	c->info = mem_zalloc(DUNGEON_HGT * sizeof(bitflag**));
+	c->feat = mem_zalloc(DUNGEON_HGT * sizeof(byte*));
+	c->cost = mem_zalloc(DUNGEON_HGT * sizeof(byte*));
+	c->when = mem_zalloc(DUNGEON_HGT * sizeof(byte*));
+	c->m_idx = mem_zalloc(DUNGEON_HGT * sizeof(s16b*));
+	c->o_idx = mem_zalloc(DUNGEON_HGT * sizeof(s16b*));
+	for (y = 0; y < DUNGEON_HGT; y++){
+		c->info[y] = mem_zalloc(DUNGEON_WID * sizeof(bitflag*));
+		for (x = 0; x < DUNGEON_WID; x++)
+			c->info[y][x] = mem_zalloc(SQUARE_SIZE * sizeof(bitflag));
+		c->feat[y] = mem_zalloc(DUNGEON_WID * sizeof(byte));
+		c->cost[y] = mem_zalloc(DUNGEON_WID * sizeof(byte));
+		c->when[y] = mem_zalloc(DUNGEON_WID * sizeof(byte));
+		c->m_idx[y] = mem_zalloc(DUNGEON_WID * sizeof(s16b));
+		c->o_idx[y] = mem_zalloc(DUNGEON_WID * sizeof(s16b));
+	}
+
+	c->monsters = mem_zalloc(z_info->m_max * sizeof(struct monster));
 	c->mon_max = 1;
 
-	c->traps = C_ZNEW(z_info->l_max, struct trap_type);
+	c->traps = mem_zalloc(z_info->l_max * sizeof(struct trap_type));
 	c->trap_max = 1;
 	c->trap_cnt = 0;
 
@@ -2692,6 +2704,17 @@ struct cave *cave_new(void) {
 }
 
 void cave_free(struct cave *c) {
+	int y, x;
+	for (y = 0; y < DUNGEON_HGT; y++){
+		for (x = 0; x < DUNGEON_WID; x++)
+			mem_free(c->info[y][x]);
+		mem_free(c->info[y]);
+		mem_free(c->feat[y]);
+		mem_free(c->cost[y]);
+		mem_free(c->when[y]);
+		mem_free(c->m_idx[y]);
+		mem_free(c->o_idx[y]);
+	}
 	mem_free(c->info);
 	mem_free(c->feat);
 	mem_free(c->cost);
@@ -2727,9 +2750,6 @@ bool square_isfloor(struct cave *c, int y, int x) {
 
 /**
  * True if the square is a normal granite rock wall.
- *
- * FEAT_WALL_SOLID is the normal feature type. The others are weird byproducts
- * of cave generation (and should be avoided).
  */
 bool square_isrock(struct cave *c, int y, int x) {
 	return (tf_has(f_info[c->feat[y][x]].flags, TF_GRANITE) &&
