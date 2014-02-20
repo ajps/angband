@@ -1432,7 +1432,7 @@ static void do_cmd_wiz_zap(int d)
 
 
 /*
- * Query the dungeon
+ * Query square flags
  */
 static void do_cmd_wiz_query(void)
 {
@@ -1443,7 +1443,7 @@ static void do_cmd_wiz_query(void)
 
 	struct keypress cmd;
 
-	u16b mask = 0x00;
+	int flag = 0;
 
 
 	/* Get a "debug command" */
@@ -1452,22 +1452,23 @@ static void do_cmd_wiz_query(void)
 	/* Extract a flag */
 	switch (cmd.code)
 	{
-		case '0': mask = (1 << 0); break;
-		case '1': mask = (1 << 1); break;
-		case '2': mask = (1 << 2); break;
-		case '3': mask = (1 << 3); break;
-		case '4': mask = (1 << 4); break;
-		case '5': mask = (1 << 5); break;
-		case '6': mask = (1 << 6); break;
-		case '7': mask = (1 << 7); break;
-
-		case 'm': mask |= (SQUARE_MARK); break;
-		case 'g': mask |= (SQUARE_GLOW); break;
-		case 'r': mask |= (SQUARE_ROOM); break;
-		case 'i': mask |= (SQUARE_VAULT); break;
-		case 's': mask |= (SQUARE_SEEN); break;
-		case 'v': mask |= (SQUARE_VIEW); break;
-		case 't': mask |= (SQUARE_WASSEEN); break;
+		case 'm': flag = (SQUARE_MARK); break;
+		case 'g': flag = (SQUARE_GLOW); break;
+		case 'r': flag = (SQUARE_ROOM); break;
+		case 'a': flag = (SQUARE_VAULT); break;
+		case 's': flag = (SQUARE_SEEN); break;
+		case 'v': flag = (SQUARE_VIEW); break;
+		case 'w': flag = (SQUARE_WASSEEN); break;
+		case 'd': flag = (SQUARE_DTRAP); break;
+		case 'f': flag = (SQUARE_FEEL); break;
+		case 'e': flag = (SQUARE_DEDGE); break;
+		case 'z': flag = (SQUARE_VERT); break;
+		case 't': flag = (SQUARE_TRAP); break;
+		case 'n': flag = (SQUARE_INVIS); break;
+		case 'i': flag = (SQUARE_WALL_INNER); break;
+		case 'o': flag = (SQUARE_WALL_OUTER); break;
+		case 'l': flag = (SQUARE_WALL_SOLID); break;
+		case 'x': flag = (SQUARE_MON_RESTRICT); break;
 	}
 
 	/* Scan map */
@@ -1479,14 +1480,119 @@ static void do_cmd_wiz_query(void)
 
 			if (!square_in_bounds_fully(cave, y, x)) continue;
 
-			/* Given mask, show only those grids */
-			if (mask && !(cave->info[y][x][0] & mask)) continue;
+			/* Given flag, show only those grids */
+			if (!sqinfo_has(cave->info[y][x], flag)) continue;
 
-			/* Given no mask, show unknown grids */
-			if (!mask && (cave->info[y][x][0] & (SQUARE_MARK))) continue;
+			/* Given no flag, show unknown grids */
+			if (!flag && (!sqinfo_has(cave->info[y][x], SQUARE_MARK))) continue;
 
 			/* Color */
 			if (square_ispassable(cave, y, x)) a = TERM_YELLOW;
+
+			/* Display player/floors/walls */
+			if ((y == py) && (x == px))
+				print_rel(L'@', a, y, x);
+			else if (square_ispassable(cave, y, x))
+				print_rel(L'*', a, y, x);
+			else
+				print_rel(L'#', a, y, x);
+		}
+	}
+
+	Term_redraw();
+
+	/* Get keypress */
+	msg("Press any key.");
+	inkey_ex();
+	message_flush();
+
+	/* Redraw map */
+	prt_map();
+}
+
+/*
+ * Query terrain
+ */
+static void do_cmd_wiz_features(void)
+{
+	int py = player->py;
+	int px = player->px;
+
+	int y, x;
+
+	struct keypress cmd;
+
+	/* OMG hax */
+	int *feat;
+	int featf[] = {FEAT_FLOOR};
+	int feato[] = {FEAT_OPEN};
+	int featb[] = {FEAT_BROKEN};
+	int featu[] = {FEAT_LESS};
+	int featz[] = {FEAT_MORE};
+	int feats[] = { FEAT_SHOP_HEAD, FEAT_SHOP_HEAD + 1, FEAT_SHOP_HEAD + 2, FEAT_SHOP_HEAD + 3, FEAT_SHOP_HEAD + 4, FEAT_SHOP_HEAD + 5, FEAT_SHOP_HEAD + 6, FEAT_SHOP_HEAD + 7 };
+	int featt[] = {FEAT_LESS, FEAT_MORE};
+	int featc[] = {FEAT_DOOR_HEAD, FEAT_DOOR_HEAD + 1, FEAT_DOOR_HEAD + 2, FEAT_DOOR_HEAD + 3, FEAT_DOOR_HEAD + 4, FEAT_DOOR_HEAD + 5, FEAT_DOOR_HEAD + 6, FEAT_DOOR_HEAD + 7, FEAT_DOOR_HEAD + 8, FEAT_DOOR_HEAD + 9, FEAT_DOOR_HEAD + 10, FEAT_DOOR_HEAD + 11, FEAT_DOOR_HEAD + 12, FEAT_DOOR_HEAD + 13, FEAT_DOOR_HEAD + 14, FEAT_DOOR_HEAD + 15};
+	int featd[] = {FEAT_DOOR_HEAD, FEAT_DOOR_HEAD + 1, FEAT_DOOR_HEAD + 2, FEAT_DOOR_HEAD + 3, FEAT_DOOR_HEAD + 4, FEAT_DOOR_HEAD + 5, FEAT_DOOR_HEAD + 6, FEAT_DOOR_HEAD + 7, FEAT_DOOR_HEAD + 8, FEAT_DOOR_HEAD + 9, FEAT_DOOR_HEAD + 10, FEAT_DOOR_HEAD + 11, FEAT_DOOR_HEAD + 12, FEAT_DOOR_HEAD + 13, FEAT_DOOR_HEAD + 14, FEAT_DOOR_HEAD + 15, FEAT_OPEN, FEAT_BROKEN, FEAT_SECRET};
+	int feath[] = {FEAT_SECRET};
+	int featm[] = {FEAT_MAGMA, FEAT_MAGMA_H, FEAT_MAGMA_K};
+	int featq[] = {FEAT_QUARTZ, FEAT_QUARTZ_H, FEAT_QUARTZ_K};
+	int featg[] = {FEAT_GRANITE};
+	int featp[] = {FEAT_PERM};
+	int featr[] = {FEAT_RUBBLE};
+	int length;
+
+
+	/* Get a "debug command" */
+	if (!get_com("Debug Command Feature Query: ", &cmd)) return;
+
+	/* Choose a feature (type) */
+	switch (cmd.code)
+	{
+		/* */
+		case 'f': feat = featf; length = 1; break;
+		/* */
+		case 'o': feat = feato; length = 1; break;
+		/* */
+		case 'b': feat = featb; length = 1; break;
+		/* */
+		case 'u': feat = featu; length = 1; break;
+		/* */
+		case 'z': feat = featz; length = 1; break;
+		/* */
+		case 's': feat = feats; length = 8; break;
+		/* */
+		case 't': feat = featt; length = 2; break;
+		/* */
+		case 'c': feat = featc; length = 16; break;
+		/* */
+		case 'd': feat = featd; length = 19; break;
+		case 'h': feat = feath; length = 1; break;
+		case 'm': feat = featm; length = 3; break;
+		case 'q': feat = featq; length = 3; break;
+		case 'g': feat = featg; length = 1; break;
+		case 'p': feat = featp; length = 1; break;
+		case 'r': feat = featr; length = 1; break;
+	}
+
+	/* Scan map */
+	for (y = Term->offset_y; y < Term->offset_y + SCREEN_HGT; y++)
+	{
+		for (x = Term->offset_x; x < Term->offset_x + SCREEN_WID; x++)
+		{
+			byte a = TERM_RED;
+			bool show = FALSE;
+			int i;
+
+			if (!square_in_bounds_fully(cave, y, x)) continue;
+
+			/* Given feature, show only those grids */
+			for (i = 0; i < length; i++)
+				if (cave->feat[y][x] == feat[i]) show = TRUE;
+
+			/* Color */
+			if (square_ispassable(cave, y, x)) a = TERM_YELLOW;
+
+			if (!show) continue;
 
 			/* Display player/floors/walls */
 			if ((y == py) && (x == px))
@@ -1769,6 +1875,12 @@ void do_cmd_debug(void)
 		case 'f':
 		{
 			stats_collect();
+			break;
+		}
+
+		case 'F':
+		{
+			do_cmd_wiz_features();
 			break;
 		}
 

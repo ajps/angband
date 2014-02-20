@@ -204,11 +204,8 @@ static void build_tunnel(struct cave *c, int row1, int col1, int row2, int col2)
 			/* Forbid re-entry near this piercing */
 			for (y = row1 - 1; y <= row1 + 1; y++)
 				for (x = col1 - 1; x <= col1 + 1; x++)
-					if (square_is_granite_with_flag(c, y, x, 
-													SQUARE_WALL_OUTER)) { 
+					if (square_is_granite_with_flag(c, y, x, SQUARE_WALL_OUTER))
 						set_marked_granite(c, y, x, SQUARE_WALL_SOLID);
-						sqinfo_off(c->info[y][x], SQUARE_WALL_OUTER);
-					}
 
 		} else if (sqinfo_has(c->info[tmp_row][tmp_col], SQUARE_ROOM)) {
 			/* Travel quickly through rooms */
@@ -374,10 +371,6 @@ static void set_cave_dimensions(struct cave *c, int h, int w)
 /**
  * Generate a new dungeon level.
  */
-#define DUN_AMT_ROOM 9 /* Number of objects for rooms */
-#define DUN_AMT_ITEM 3 /* Number of objects for rooms/corridors */
-#define DUN_AMT_GOLD 3 /* Amount of treasure for rooms/corridors */
-
 bool classic_gen(struct cave *c, struct player *p) {
     int i, j, k, y, x, y1, x1;
     int by, bx = 0, tby, tbx, key, rarity, built;
@@ -574,13 +567,13 @@ bool classic_gen(struct cave *c, struct player *p) {
 		pick_and_place_distant_monster(c, loc(p->px, p->py), 0, TRUE, c->depth);
 
     /* Put some objects in rooms */
-    alloc_objects(c, SET_ROOM, TYP_OBJECT, Rand_normal(DUN_AMT_ROOM, 3),
+    alloc_objects(c, SET_ROOM, TYP_OBJECT, Rand_normal(AMT_ROOM, 3),
 				  c->depth, ORIGIN_FLOOR);
 
     /* Put some objects/gold in the dungeon */
-    alloc_objects(c, SET_BOTH, TYP_OBJECT, Rand_normal(DUN_AMT_ITEM, 3),
+    alloc_objects(c, SET_BOTH, TYP_OBJECT, Rand_normal(AMT_ITEM, 3),
 				  c->depth, ORIGIN_FLOOR);
-    alloc_objects(c, SET_BOTH, TYP_GOLD, Rand_normal(DUN_AMT_GOLD, 3),
+    alloc_objects(c, SET_BOTH, TYP_GOLD, Rand_normal(AMT_GOLD, 3),
 				  c->depth, ORIGIN_FLOOR);
 
     return TRUE;
