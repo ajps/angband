@@ -56,8 +56,8 @@ static void build_streamer(struct cave *c, int feat, int chance)
     int y, x, dir;
 
     /* Hack -- Choose starting point */
-    y = rand_spread(DUNGEON_HGT / 2, 10);
-    x = rand_spread(DUNGEON_WID / 2, 15);
+    y = rand_spread(c->height / 2, 10);
+    x = rand_spread(c->width / 2, 15);
 
     /* Choose a random direction */
     dir = ddd[randint0(8)];
@@ -95,7 +95,7 @@ static void build_streamer(struct cave *c, int feat, int chance)
  * Constructs a tunnel between two points
  *
  * This function must be called BEFORE any streamers are created, since we use
- * the special "granite wall" sub-types to keep track of legal places for
+ * granite with the special SQUARE_WALL flags to keep track of legal places for
  * corridors to pierce rooms.
  *
  * We queue the tunnel grids to prevent door creation along a corridor which
@@ -355,7 +355,8 @@ static void try_door(struct cave *c, int y, int x)
 
 
 /**
- * 
+ * Set the height and width for this dungeon level.  Any grids outside these
+ * but less than DUNGEON_HGT, DUNGEON_WID should be set to permanent rock.
  */
 static void set_cave_dimensions(struct cave *c, int h, int w)
 {
@@ -377,17 +378,9 @@ bool classic_gen(struct cave *c, struct player *p) {
     int num_rooms, size_percent;
     int dun_unusual = dun->profile->dun_unusual;
 
-    bool **blocks_tried = mem_zalloc(MAX_ROOMS_ROW * sizeof(bool*));
+    bool **blocks_tried;
 
-	for (i = 0; i < MAX_ROOMS_ROW; i++)
-		blocks_tried[i] = mem_zalloc(MAX_ROOMS_COL * sizeof(bool));
-
-    /* Possibly generate fewer rooms in a smaller area via a scaling factor.
-     * Since we scale row_rooms and col_rooms by the same amount, DUN_ROOMS
-     * gives the same "room density" no matter what size the level turns out
-     * to be. TODO: vary room density slightly? */
-
-    /* XXX: Until vault generation is improved, scaling variance is removed */
+    /* This code currently does nothing - see comments below */
     i = randint1(10) + c->depth / 24;
     if (is_quest(c->depth)) size_percent = 100;
     else if (i < 2) size_percent = 75;
@@ -399,27 +392,41 @@ bool classic_gen(struct cave *c, struct player *p) {
 
     /* scale the various generation variables */
     num_rooms = (dun->profile->dun_rooms * size_percent) / 100;
+	dun->block_hgt = dun->profile->block_size;
+	dun->block_wid = dun->profile->block_size;
     set_cave_dimensions(c, DUNGEON_HGT, DUNGEON_WID);
     ROOM_LOG("height=%d  width=%d  nrooms=%d", c->height, c->width, num_rooms);
 
-    /* Initially fill with basic granite */
+    /* Fill whole level with perma-rock */
     fill_rectangle(c, 0, 0, DUNGEON_HGT - 1, DUNGEON_WID - 1, 
+				   FEAT_PERM, SQUARE_NONE);
+
+    /* Fill cave area with basic granite */
+    fill_rectangle(c, 0, 0, c->height - 1, c->width - 1, 
 				   FEAT_GRANITE, SQUARE_NONE);
 
     /* Actual maximum number of rooms on this level */
-    dun->row_rooms = c->height / BLOCK_HGT;
-    dun->col_rooms = c->width / BLOCK_WID;
+    dun->row_blocks = c->height / dun->block_hgt;
+    dun->col_blocks = c->width / dun->block_wid;
 
     /* Initialize the room table */
-	dun->room_map = mem_zalloc(MAX_ROOMS_ROW * sizeof(bool*));
-	for (i = 0; i < MAX_ROOMS_ROW; i++)
-		dun->room_map[i] = mem_zalloc(MAX_ROOMS_COL * sizeof(bool));
+	dun->room_map = mem_zalloc(dun->row_blocks * sizeof(bool*));
+	for (i = 0; i < dun->row_blocks; i++)
+		dun->room_map[i] = mem_zalloc(dun->col_blocks * sizeof(bool));
+
+    /* Initialize the block table */
+    blocks_tried = mem_zalloc(dun->row_blocks * sizeof(bool*));
+
+	for (i = 0; i < dun->row_blocks; i++)
+		blocks_tried[i] = mem_zalloc(dun->col_blocks * sizeof(bool));
 
     /* No rooms yet, pits or otherwise. */
     dun->pit_num = 0;
     dun->cent_n = 0;
 
-    /* Build some rooms */
+    /* Build some rooms.  Note that the theoretical maximum number of rooms
+	 * in this profile is currently 36, so built never reaches num_rooms,
+	 * and room generation is always terminated by having tried all blocks */
     built = 0;
     while(built < num_rooms) {
 
@@ -427,8 +434,8 @@ bool classic_gen(struct cave *c, struct player *p) {
 		j = 0;
 		tby = 0;
 		tbx = 0;
-		for(by = 0; by < dun->row_rooms; by++) {
-			for(bx = 0; bx < dun->col_rooms; bx++) {
+		for(by = 0; by < dun->row_blocks; by++) {
+			for(bx = 0; bx < dun->col_blocks; bx++) {
 				if (blocks_tried[by][bx]) continue;
 				j++;
 				if (one_in_(j)) {
@@ -471,22 +478,22 @@ bool classic_gen(struct cave *c, struct player *p) {
 			if (profile.rarity > rarity) continue;
 			if (profile.cutoff <= key) continue;
 			
-			if (room_build(c, by, bx, profile)) {
+			if (room_build(c, by, bx, profile, FALSE)) {
 				built++;
 				break;
 			}
 		}
     }
 
-	for (i = 0; i < MAX_ROOMS_ROW; i++)
+	for (i = 0; i < dun->row_blocks; i++){
 		mem_free(blocks_tried[i]);
-	mem_free(blocks_tried);
-	for (i = 0; i < MAX_ROOMS_ROW; i++)
 		mem_free(dun->room_map[i]);
+	}
+	mem_free(blocks_tried);
 	mem_free(dun->room_map);
 
-    /* Generate permanent walls around the edge of the dungeon */
-    draw_rectangle(c, 0, 0, DUNGEON_HGT - 1, DUNGEON_WID - 1, 
+    /* Generate permanent walls around the edge of the generated area */
+    draw_rectangle(c, 0, 0, c->height - 1, c->width - 1, 
 				   FEAT_PERM, SQUARE_NONE);
 
     /* Hack -- Scramble the room order */
@@ -1407,14 +1414,6 @@ bool town_gen(struct cave *c, struct player *p) {
 
     set_cave_dimensions(c, TOWN_HGT, TOWN_WID);
 
-    /* NOTE: We can't use c->height and c->width here because then there'll be
-     * a bunch of empty space in the level that monsters might spawn in (or
-     * teleport might take you to, or whatever).
-     *
-     * TODO: fix this to use c->height and c->width when all the 'choose
-     * random location' things honor them.
-     */
-
     /* Start with solid walls, and then create some floor in the middle */
     fill_rectangle(c, 0, 0, DUNGEON_HGT - 1, DUNGEON_WID - 1, 
 				   FEAT_PERM, SQUARE_NONE);
@@ -1430,6 +1429,245 @@ bool town_gen(struct cave *c, struct player *p) {
     /* Make some residents */
     for (i = 0; i < residents; i++)
 		pick_and_place_distant_monster(c, loc(p->px, p->py), 3, TRUE, c->depth);
+
+    return TRUE;
+}
+
+
+/* ------------------ EXPERIMENTAL ---------------- */
+
+/**
+ * Room profiles for moria levels - idea stolen from Oangband
+ */
+struct room_profile moria_rooms[] = {
+	/* really big rooms have rarity 0 but they have other checks */
+	{"greater vault", build_greater_vault, 44, 66, 35, FALSE, 0, 100},
+
+	/* very rare rooms (rarity=2) */
+	{"room of chambers", build_room_of_chambers, 44, 66, 10, FALSE, 2, 4},
+	{"monster pit", build_pit, 11, 33, 5, TRUE, 2, 12},
+	{"monster nest", build_nest, 11, 33, 5, TRUE, 2, 20},
+	{"medium vault", build_medium_vault, 22, 33, 30, FALSE, 2, 40},
+	{"lesser vault", build_lesser_vault, 22, 33, 20, FALSE, 2, 60},
+	{"interesting room", build_interesting, 44, 55, 0, FALSE, 2, 100},
+
+	/* normal rooms */
+	{"simple room", build_moria, 11, 33, 1, FALSE, 0, 100}
+};
+
+/**
+ * Generate a new dungeon level.
+ *
+ * This is sample code to illustrate some of the new dungeon generation
+ * methods; I think it actually prdouces quite nice levels.  New stuff:
+ *
+ * - different sized levels
+ * - independence from block size: the block size can be set to any number
+ *   from 1 (no blocks) to about 15; beyond that it struggles to generate
+ *   enough floor space
+ * - the find_space function, called from the room builder functions, allows
+ *   the room to find space for itself rather than the generation algorithm
+ *   allocating it; this helps because the room knows better what size it is
+ * - a count is now kept of grids of the various terrains, allowing dungeon
+ *   generation to terminate when enough floor is generated
+ * - there are four new room types - moria rooms, huge rooms, rooms of
+ *   chambers and interesting rooms - as well as many new vaults
+ * - there is the ability to place specific monsters and objects in vaults and
+ *   interesting rooms, as well as to make general monster restrictions in
+ *   areas or the whole dungeon
+ */
+bool sample1_gen(struct cave *c, struct player *p) {
+    int i, k, y, x, y1, x1;
+    int by = 0, bx = 0, key, rarity;
+    int num_floors, size_percent, y_size, x_size;
+	int num_rooms = dun->profile->n_room_profiles;
+    int dun_unusual = dun->profile->dun_unusual;
+	bool moria_level = FALSE;
+
+    /* Scale the level */
+    i = randint1(10) + c->depth / 24;
+    if (is_quest(c->depth)) size_percent = 100;
+    else if (i < 2) size_percent = 75;
+    else if (i < 3) size_percent = 80;
+    else if (i < 4) size_percent = 85;
+    else if (i < 5) size_percent = 90;
+    else if (i < 6) size_percent = 95;
+    else size_percent = 100;
+	y_size = DUNGEON_HGT * (size_percent - 5 + randint0(10)) / 100;
+	x_size = DUNGEON_WID * (size_percent - 5 + randint0(10)) / 100;
+
+    /* Set the block height and width */
+	dun->block_hgt = dun->profile->block_size;
+	dun->block_wid = dun->profile->block_size;
+
+    /* Set the cave dimensions */
+    set_cave_dimensions(c, MIN(DUNGEON_HGT, y_size), MIN(DUNGEON_WID, x_size));
+
+	/* Set the intended number of floor grids based on cave floor area */
+    num_floors = c->height * c->width / 7;
+    ROOM_LOG("height=%d  width=%d  nfloors=%d", c->height, c->width,num_floors);
+
+    /* Fill whole level with perma-rock */
+    fill_rectangle(c, 0, 0, DUNGEON_HGT - 1, DUNGEON_WID - 1, 
+				   FEAT_PERM, SQUARE_NONE);
+
+    /* Fill cave area with basic granite */
+    fill_rectangle(c, 0, 0, c->height - 1, c->width - 1, 
+				   FEAT_GRANITE, SQUARE_NONE);
+
+    /* Actual maximum number of blocks on this level */
+    dun->row_blocks = c->height / dun->block_hgt;
+    dun->col_blocks = c->width / dun->block_wid;
+
+    /* Initialize the room table */
+	dun->room_map = mem_zalloc(dun->row_blocks * sizeof(bool*));
+	for (i = 0; i < dun->row_blocks; i++)
+		dun->room_map[i] = mem_zalloc(dun->col_blocks * sizeof(bool));
+
+    /* No rooms yet, pits or otherwise. */
+    dun->pit_num = 0;
+    dun->cent_n = 0;
+
+	/* Hack -- It is possible for levels to be moria-style. */
+	if ((c->depth >= 10) && (c->depth < 40) && one_in_(40)) {
+		moria_level = TRUE;
+		num_rooms = N_ELEMENTS(moria_rooms);
+		ROOM_LOG("Moria level");
+	}
+
+    /* Build rooms until we have enough floor grids */
+    while (c->feat_count[FEAT_FLOOR] < num_floors) {
+
+		/* Roll for random key (to be compared against a profile's cutoff) */
+		key = randint0(100);
+
+		/* We generate a rarity number to figure out how exotic to make the
+		 * room. This number has a depth/DUN_UNUSUAL chance of being > 0,
+		 * a depth^2/DUN_UNUSUAL^2 chance of being > 1, up to MAX_RARITY. */
+		i = 0;
+		rarity = 0;
+		while (i == rarity && i < dun->profile->max_rarity) {
+			if (randint0(dun_unusual) < 50 + c->depth / 2) rarity++;
+			i++;
+		}
+
+		/* Once we have a key and a rarity, we iterate through out list of
+		 * room profiles looking for a match (whose cutoff > key and whose
+		 * rarity > this rarity). We try building the room, and if it works
+		 * then we are done with this iteration. We keep going until we find
+		 * a room that we can build successfully or we exhaust the profiles. */
+		for (i = 0; i < num_rooms; i++) {
+			struct room_profile profile = moria_level ? moria_rooms[i] :
+				dun->profile->room_profiles[i];
+			if (profile.rarity > rarity) continue;
+			if (profile.cutoff <= key) continue;
+			if (room_build(c, by, bx, profile, TRUE)) break;
+		}
+    }
+
+	for (i = 0; i < dun->row_blocks; i++)
+		mem_free(dun->room_map[i]);
+	mem_free(dun->room_map);
+
+    /* Generate permanent walls around the edge of the generated area */
+    draw_rectangle(c, 0, 0, c->height - 1, c->width - 1, 
+				   FEAT_PERM, SQUARE_NONE);
+
+    /* Hack -- Scramble the room order */
+    for (i = 0; i < dun->cent_n; i++) {
+		int pick1 = randint0(dun->cent_n);
+		int pick2 = randint0(dun->cent_n);
+		y1 = dun->cent[pick1].y;
+		x1 = dun->cent[pick1].x;
+		dun->cent[pick1].y = dun->cent[pick2].y;
+		dun->cent[pick1].x = dun->cent[pick2].x;
+		dun->cent[pick2].y = y1;
+		dun->cent[pick2].x = x1;
+    }
+
+    /* Start with no tunnel doors */
+    dun->door_n = 0;
+
+    /* Hack -- connect the first room to the last room */
+    y = dun->cent[dun->cent_n-1].y;
+    x = dun->cent[dun->cent_n-1].x;
+
+    /* Connect all the rooms together */
+    for (i = 0; i < dun->cent_n; i++) {
+		/* Connect the room to the previous room */
+		build_tunnel(c, dun->cent[i].y, dun->cent[i].x, y, x);
+
+		/* Remember the "previous" room */
+		y = dun->cent[i].y;
+		x = dun->cent[i].x;
+    }
+
+    /* Place intersection doors */
+    for (i = 0; i < dun->door_n; i++) {
+		/* Extract junction location */
+		y = dun->door[i].y;
+		x = dun->door[i].x;
+
+		/* Try placing doors */
+		try_door(c, y, x - 1);
+		try_door(c, y, x + 1);
+		try_door(c, y - 1, x);
+		try_door(c, y + 1, x);
+    }
+
+    ensure_connectedness(c);
+
+    /* Add some magma streamers */
+    for (i = 0; i < dun->profile->str.mag; i++)
+		build_streamer(c, FEAT_MAGMA, dun->profile->str.mc);
+
+    /* Add some quartz streamers */
+    for (i = 0; i < dun->profile->str.qua; i++)
+		build_streamer(c, FEAT_QUARTZ, dun->profile->str.qc);
+
+    /* Place 3 or 4 down stairs near some walls */
+    alloc_stairs(c, FEAT_MORE, rand_range(3, 4), 3);
+
+    /* Place 1 or 2 up stairs near some walls */
+    alloc_stairs(c, FEAT_LESS, rand_range(1, 2), 3);
+
+    /* General amount of rubble, traps and monsters */
+    k = MAX(MIN(c->depth / 3, 10), 2);
+
+    /* Put some rubble in corridors */
+    alloc_objects(c, SET_CORR, TYP_RUBBLE, randint1(k), c->depth, 0);
+
+    /* Place some traps in the dungeon */
+    alloc_objects(c, SET_BOTH, TYP_TRAP, randint1(k), c->depth, 0);
+
+    /* Determine the character location */
+    new_player_spot(c, p);
+
+    /* Pick a base number of monsters */
+    i = MIN_M_ALLOC_LEVEL + randint1(8) + k;
+
+	/* Moria levels have a high proportion of cave dwellers. */
+	if (moria_level) {
+		/* Set global monster restriction variables. */
+			mon_restrict("Moria dwellers", c->depth, TRUE);
+	} else {
+		/* Remove all monster restrictions. */
+		mon_restrict(NULL, c->depth, TRUE);
+	}
+
+    /* Put some monsters in the dungeon */
+    for (; i > 0; i--)
+		pick_and_place_distant_monster(c, loc(p->px, p->py), 0, TRUE, c->depth);
+
+    /* Put some objects in rooms */
+    alloc_objects(c, SET_ROOM, TYP_OBJECT, Rand_normal(AMT_ROOM, 3),
+				  c->depth, ORIGIN_FLOOR);
+
+    /* Put some objects/gold in the dungeon */
+    alloc_objects(c, SET_BOTH, TYP_OBJECT, Rand_normal(AMT_ITEM, 3),
+				  c->depth, ORIGIN_FLOOR);
+    alloc_objects(c, SET_BOTH, TYP_GOLD, Rand_normal(AMT_GOLD, 3),
+				  c->depth, ORIGIN_FLOOR);
 
     return TRUE;
 }

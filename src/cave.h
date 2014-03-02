@@ -219,6 +219,7 @@ struct cave {
 	int width;
 	
 	u16b feeling_squares; /* How many feeling squares the player has visited */
+	int *feat_count;
 
 	bitflag ***info;
 	byte **feat;
@@ -233,7 +234,6 @@ struct cave {
 
 	struct trap_type *traps;
 	s16b trap_max;
-	int trap_cnt;
 };
 
 extern int distance(int y1, int x1, int y2, int x2);
@@ -360,6 +360,10 @@ extern struct monster *cave_monster(struct cave *c, int idx);
 extern struct monster *square_monster(struct cave *c, int y, int x);
 extern int cave_monster_max(struct cave *c);
 extern int cave_monster_count(struct cave *c);
+
+extern struct trap_type *cave_trap(struct cave *c, int idx);
+extern int cave_trap_max(struct cave *c);
+extern int cave_trap_count(struct cave *c);
 
 void upgrade_mineral(struct cave *c, int y, int x);
 

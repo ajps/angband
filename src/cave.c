@@ -560,7 +560,7 @@ void grid_data_as_text(grid_data *g, int *ap, wchar_t *cp, int *tap, wchar_t *tc
 	(*tcp) = c;
 
 	/* There is a trap in this grid, and we are not hallucinating */
-	if (((int) g->trap < cave->trap_max) && (!g->hallucinate))
+	if (((int) g->trap < cave_trap_max(cave)) && (!g->hallucinate))
 	{
 	    /* Change graphics to indicate a trap (if visible) */
 	    (void) get_trap_graphics(cave, g->trap, &a, &c, TRUE);
@@ -807,7 +807,7 @@ void map_info(unsigned y, unsigned x, grid_data *g)
 
 	/* Default "clear" values, others will be set later where appropriate. */
 	g->first_kind = NULL;
-    g->trap = cave->trap_max;
+    g->trap = cave_trap_max(cave);
 	g->multiple_objects = FALSE;
 	g->lighting = FEAT_LIGHTING_DARK;
 	g->unseen_object = FALSE;
@@ -847,10 +847,10 @@ void map_info(unsigned y, unsigned x, grid_data *g)
 		int i;
 		
 		/* Scan the current trap list */
-		for (i = 0; i < cave->trap_max; i++)
+		for (i = 0; i < cave_trap_max(cave); i++)
 		{
 			/* Point to this trap */
-			trap_type *t_ptr = &cave->traps[i];
+			trap_type *t_ptr = cave_trap(cave, i);
 			
 			/* Find a trap in this position */
 			if ((t_ptr->fy == y) && (t_ptr->fx == x))
@@ -2252,14 +2252,22 @@ struct feature *square_feat(struct cave *c, int y, int x)
 
 void square_set_feat(struct cave *c, int y, int x, int feat)
 {
+	int current_feat = c->feat[y][x];
+
 	assert(c);
 	assert(y >= 0 && y < DUNGEON_HGT);
 	assert(x >= 0 && x < DUNGEON_WID);
 	/* XXX: Check against c->height and c->width instead, once everywhere
 	 * honors those... */
 
+	/* Track changes */
+	if (current_feat) c->feat_count[current_feat]--;
+	if (feat) c->feat_count[feat]++;
+
+	/* Make the change */
 	c->feat[y][x] = feat;
 
+	/* Make the new terrain feel at home */
 	if (character_dungeon) {
 		square_note_spot(c, y, x);
 		square_light_spot(c, y, x);
@@ -2680,6 +2688,7 @@ struct cave *cave_new(void) {
 	int y, x;
 
 	struct cave *c = mem_zalloc(sizeof *c);
+	c->feat_count = mem_zalloc((z_info->f_max + 1) * sizeof(int));
 	c->info = mem_zalloc(DUNGEON_HGT * sizeof(bitflag**));
 	c->feat = mem_zalloc(DUNGEON_HGT * sizeof(byte*));
 	c->cost = mem_zalloc(DUNGEON_HGT * sizeof(byte*));
@@ -2702,7 +2711,6 @@ struct cave *cave_new(void) {
 
 	c->traps = mem_zalloc(z_info->l_max * sizeof(struct trap_type));
 	c->trap_max = 1;
-	c->trap_cnt = 0;
 
 	c->created_at = 1;
 	return c;
@@ -2720,6 +2728,7 @@ void cave_free(struct cave *c) {
 		mem_free(c->m_idx[y]);
 		mem_free(c->o_idx[y]);
 	}
+	mem_free(c->feat_count);
 	mem_free(c->info);
 	mem_free(c->feat);
 	mem_free(c->cost);
@@ -3145,6 +3154,20 @@ int cave_monster_max(struct cave *c) {
  */
 int cave_monster_count(struct cave *c) {
 	return c->mon_cnt;
+}
+
+/**
+ * Get a trap on the current level by its index.
+ */
+struct trap_type *cave_trap(struct cave *c, int idx) {
+	return &c->traps[idx];
+}
+
+/**
+ * The maximum number of traps allowed in the level.
+ */
+int cave_trap_max(struct cave *c) {
+	return c->trap_max;
 }
 
 /**
