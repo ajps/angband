@@ -28,6 +28,7 @@
 #include "obj-tval.h"
 #include "obj-info.h"
 #include "project.h"
+#include "obj-slays.h"
 
 static struct {
 	u16b index;				/* the OF_ index */
@@ -40,16 +41,16 @@ static struct {
 #undef OF
 };
 
-#if 0
 static struct {
-	u16b index;				/* OFT_ category */
-	const char *name;
-} flag_types[] = {
-#define OF(a, b, c, type, ...) { type, #type },
-#include "list-object-flags.h"
-#undef OF
+	u16b index;				/* the SLAY_ index */
+	const char *name;       /* Name of the slay */
+	const char *flag_name;  /* Name of the corresponding objet flag */
+} slay_table[] = {
+	#define SLAY(idx, flag, c, d, e, f, g, h, i, j) \
+		{ SL_##idx, #idx, #flag },
+	#include "list-slays.h"
+	#undef SLAY
 };
-#endif
 
 #define FLAG_SET MAX_SHORT
 
@@ -115,6 +116,89 @@ static int lua_objects_get_idx(lua_State *L)
 	return 1;
 }
 
+/**
+ * Pushes a table containing a whole bundle of combat-related info about
+ * the given object.
+ */
+static int push_combat(lua_State *L, const object_type *o_ptr)
+{
+	int range, break_chance;
+	bool impactful, thrown_effect, too_heavy;
+
+	bool nonweap_slay = FALSE;
+	int normal_damage;
+	int slay_damage[SL_MAX];
+	int slays[SL_MAX];
+	int num_slays;
+	int i;
+	struct blow_info blow_info[STAT_RANGE * 2]; /* (Very) theoretical max */
+	int num_entries = 0;
+
+	/* Our return value */
+	lua_newtable(L);
+
+	obj_known_misc_combat(o_ptr, &thrown_effect, &range, &impactful, &break_chance, &too_heavy);
+
+	lua_pushboolean(L, thrown_effect);
+	lua_setfield(L, -2, "thrown_effect");
+
+	lua_pushboolean(L, impactful);
+	lua_setfield(L, -2, "impactful");
+
+	lua_pushnumber(L, break_chance);
+	lua_setfield(L, -2, "breakage_chance");
+
+	if (range) {
+		lua_pushnumber(L, range);
+		lua_setfield(L, -2, "range");
+	}
+
+	num_entries = obj_known_blows(o_ptr, STAT_RANGE * 2, blow_info);
+
+	if (!num_entries) {
+		/* No blows with this object means all the following melee
+		   info is meaningless or misleading - dont add it */
+		return 1;
+	}
+
+	lua_pushnumber(L, (lua_Number) blow_info[0].centiblows / 100);
+	lua_setfield(L, -2, "current_blows");
+	
+	if (num_entries > 1) {
+		lua_newtable(L);
+		for (i = 0; i < num_entries; i++) {
+			lua_pushnumber(L, i); /* array key */
+			lua_newtable(L); 
+			lua_pushnumber(L, (lua_Number) blow_info[i].str_plus);
+			lua_setfield(L, -2, "str_plus");
+			lua_pushnumber(L, (lua_Number) blow_info[i].dex_plus);
+			lua_setfield(L, -2, "dex_plus");
+			lua_pushnumber(L, (lua_Number) blow_info[0].centiblows / 100);
+			lua_setfield(L, -2, "blows");
+			lua_settable(L, -3);
+		}
+		lua_setfield(L, -2, "extra_blows");
+	}
+
+	num_slays = obj_known_damage(o_ptr, &normal_damage, slays, slay_damage, &nonweap_slay);
+
+	lua_pushnumber(L, (lua_Number) normal_damage / 10);
+	lua_setfield(L, -2, "avg_damage");
+
+	lua_pushboolean(L, nonweap_slay);
+	lua_setfield(L, -2, "nonweapon_slays");
+
+	if (num_slays) {
+		lua_newtable(L);
+		for (i = 0; i < num_slays; i++) {
+			lua_pushnumber(L, (lua_Number) slay_damage[i] / 10);
+			lua_setfield(L, -2, slay_table[slays[i]].flag_name + 3);
+		}
+		lua_setfield(L, -2, "slay_damage");
+	}
+
+	return 1;
+}
 
 /**
  * Pushes the nourishment provided by the given object on to the stack.  
@@ -265,7 +349,7 @@ int lua_object_meta_index(lua_State *L)
 		/* An effect object?  A number? */
 	} else if (streq(key, "type")) {
 	} else if (streq(key, "combat")) {
-		/* too_heavy, blows?, range, damage, breakage, thrown_effect */
+		return push_combat(L, o_ptr);
 	} else if (streq(key, "nourishment")) {
 		return push_nourishment(L, o_ptr);
 	} else if (streq(key, "digging")) {
