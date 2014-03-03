@@ -117,6 +117,36 @@ static int lua_objects_get_idx(lua_State *L)
 }
 
 /**
+ * Pushes a table containing information about the light-giving properties of
+ * the given object.
+ */
+static int push_light(lua_State *L, const object_type *o_ptr)
+{
+	int radius = 0, refuel_turns = 0;
+	bool uses_fuel = FALSE;
+
+	if (!obj_known_light(o_ptr, 0, &radius, &uses_fuel, &refuel_turns))
+		return 0;
+
+	/* Our return value */
+	lua_newtable(L);
+	lua_pushnumber(L, radius);
+	lua_setfield(L, -2, "radius");
+	lua_pushboolean(L, uses_fuel);
+	lua_setfield(L, -2, "uses_fuel");
+	if (uses_fuel) {
+		lua_pushnumber(L, o_ptr->timeout);
+		lua_setfield(L, -2, "fuel");
+	}	
+	
+	lua_pushnumber(L, refuel_turns);
+	lua_setfield(L, -2, "max_refuel");
+	
+	return 1;
+}
+
+
+/**
  * Pushes a table containing a whole bundle of combat-related info about
  * the given object.
  */
@@ -350,6 +380,8 @@ int lua_object_meta_index(lua_State *L)
 	} else if (streq(key, "type")) {
 	} else if (streq(key, "combat")) {
 		return push_combat(L, o_ptr);
+	} else if (streq(key, "light")) {
+		return push_light(L, o_ptr);
 	} else if (streq(key, "nourishment")) {
 		return push_nourishment(L, o_ptr);
 	} else if (streq(key, "digging")) {
