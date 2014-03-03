@@ -44,18 +44,6 @@ typedef struct
 	const char *name;
 } flag_type;
 
-/*
- * Describes the number of blows possible for given stat bonuses
- */
-struct blow_info {
-	int str_plus;
-	int dex_plus;  
-	int centiblows;
-};
-
-/* Denotes the property being present, but specifics being unknown */
-#define OBJ_KNOWN_PRESENT -1
-
 
 /*** Utility code ***/
 
@@ -581,7 +569,7 @@ static void get_known_flags(const object_type *o_ptr, const oinfo_detail_t mode,
  * Note that the results are meaningless if called on a fake ego object as
  * the actual ego may have different properties.
  */
-static int obj_known_blows(const object_type *o_ptr, int max_num, struct blow_info possible_blows[])
+int obj_known_blows(const object_type *o_ptr, int max_num, struct blow_info possible_blows[])
 {
 	int str_plus, dex_plus, old_blows = 0, new_blows, extra_blows;
 	int str_faster = -1, str_done = -1;
@@ -745,7 +733,7 @@ static bool describe_blows(textblock *tb, const object_type *o_ptr)
  * Note that the results are meaningless if called on a fake ego object as
  * the actual ego may have different properties.
  */
-static int obj_known_damage(const object_type *o_ptr, int *normal_damage, int slay_list[], int slay_damage[], bool *nonweap_slay)
+int obj_known_damage(const object_type *o_ptr, int *normal_damage, int slay_list[], int slay_damage[], bool *nonweap_slay)
 {
 	size_t i, cnt;
 	int mult[SL_MAX];
@@ -937,7 +925,7 @@ static bool describe_damage(textblock *tb, const object_type *o_ptr)
  * impact flag set, the percentage chance of breakage and whether it is
  * too heavy to be weilded effectively at the moment.
  */
-static void obj_known_misc_combat(const object_type *o_ptr, bool *thrown_effect, int *range, bool *impactful, int *break_chance, bool *too_heavy)
+void obj_known_misc_combat(const object_type *o_ptr, bool *thrown_effect, int *range, bool *impactful, int *break_chance, bool *too_heavy)
 {
 	object_type *bow = &player->inventory[INVEN_BOW];
 	bool weapon = tval_is_melee_weapon(o_ptr);
@@ -1048,7 +1036,7 @@ static bool describe_combat(textblock *tb, const object_type *o_ptr)
  * Returns FALSE if the object has no effect on digging, or if the specifics
  * are meaningless (i.e. the object is an ego template, not a real item).
  */
-static bool obj_known_digging(const object_type *o_ptr, int deciturns[])
+bool obj_known_digging(const object_type *o_ptr, int deciturns[])
 {
 	player_state st;
 
@@ -1146,7 +1134,7 @@ static bool describe_digger(textblock *tb, const object_type *o_ptr)
  * Returns the number of player deciturns it will nourish for or -1 if 
  * the exact value not known.
  */
-static int obj_known_food(const object_type *o_ptr)
+int obj_known_food(const object_type *o_ptr)
 {
 	if (tval_can_have_nourishment(o_ptr) && o_ptr->pval[DEFAULT_PVAL]) {
 		if (object_is_known(o_ptr)) {
@@ -1194,7 +1182,7 @@ static bool describe_food(textblock *tb, const object_type *o_ptr,
  * Return FALSE if the object is not known to be a light source (which 
  * includes it not actually being a light source).
  */
-static bool obj_known_light(const object_type *o_ptr, oinfo_detail_t mode, int *rad, bool *uses_fuel, int *refuel_turns)
+bool obj_known_light(const object_type *o_ptr, oinfo_detail_t mode, int *rad, bool *uses_fuel, int *refuel_turns)
 {
 	bitflag flags[OF_SIZE];
 	bool no_fuel;
@@ -1281,7 +1269,7 @@ static bool describe_light(textblock *tb, const object_type *o_ptr,
  *
  * Return FALSE if the object has no effect.
  */
-static bool obj_known_effect(const object_type *o_ptr, int *effect, bool *aimed, int *min_recharge, int *max_recharge, int *failure_chance)
+bool obj_known_effect(const object_type *o_ptr, int *effect, bool *aimed, int *min_recharge, int *max_recharge, int *failure_chance)
 {
 	random_value timeout = {0, 0, 0, 0};
 

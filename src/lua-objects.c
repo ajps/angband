@@ -26,6 +26,7 @@
 #include "obj-pval.h"
 #include "obj-identify.h"
 #include "obj-tval.h"
+#include "obj-info.h"
 #include "project.h"
 
 static struct {
@@ -114,6 +115,7 @@ static int lua_objects_get_idx(lua_State *L)
 	return 1;
 }
 
+
 /**
  * Pushes the nourishment provided by the given object on to the stack.  
  * If the object is not fully known but can be eaten, this is 'true',
@@ -121,12 +123,12 @@ static int lua_objects_get_idx(lua_State *L)
  */
 static int push_nourishment(lua_State *L, const object_type *o_ptr)
 {
-	if (tval_can_have_nourishment(o_ptr) && o_ptr->pval[DEFAULT_PVAL]) {
-		if (object_is_known(o_ptr)) {
-			lua_pushnumber(L, o_ptr->pval[DEFAULT_PVAL] / 2);
-		} else {
-			lua_pushboolean(L, TRUE);
-		}
+	int nourishment = obj_known_food(o_ptr);
+
+	if (nourishment == OBJ_KNOWN_PRESENT) {
+		lua_pushboolean(L, TRUE);
+	} else if (nourishment) {
+		lua_pushnumber(L, nourishment);
 	} else {
 		lua_pushnil(L);
 	}
@@ -142,47 +144,19 @@ static int push_nourishment(lua_State *L, const object_type *o_ptr)
 static int push_digging(lua_State *L, const object_type *o_ptr)
 {
 	int i;
-	player_state st;
+	int deciturns[DIGGING_MAX];
+	static const char *names[4] = { "rubble", "magma veins", "quartz veins", "granite" };
 
-	object_type inven[INVEN_TOTAL];
-
-	int sl = wield_slot(o_ptr);
-
-	bitflag f[OF_SIZE];
-
-	int chances[DIGGING_MAX]; /* These are out of 1600 */
-	static const char *names[4] = { "rubble", "magma", "quartz", "granite" };
-
-	object_flags_known(o_ptr, f);
-
-	if (sl < 0 || (sl != INVEN_WIELD && !of_has(f, OF_TUNNEL))) {
-		lua_pushnil(L);
-		return 1;
-	}
-
-	memcpy(inven, player->inventory, INVEN_TOTAL * sizeof(object_type));
-
-	/*
-	 * Hack -- if we examine a ring that is worn on the right finger,
-	 * we shouldn't put a copy of it on the left finger before calculating
-	 * digging skills.
-	 */
-	if (o_ptr != &player->inventory[INVEN_RIGHT])
-		inven[sl] = *o_ptr;
-
-	calc_bonuses(inven, &st, TRUE);
-	calc_digging_chances(&st, chances);
+	/* Get useful info or return nothing */
+	if (!obj_known_digging(o_ptr, deciturns)) return 0;
 
 	/* Our return value */
 	lua_newtable(L);
 
-	for (i = DIGGING_RUBBLE; i <= DIGGING_GRANITE; i++)
+	for (i = DIGGING_RUBBLE; i < DIGGING_DOORS; i++)
 	{
-		int chance = MIN(1600, chances[i]);
-		int deciturns = chance ? (16000 / chance) : 0;
-
-		if (chance > 0) {
-			lua_pushnumber(L, deciturns / 10);
+		if (deciturns[i] > 0) {
+			lua_pushnumber(L, deciturns[i] / 10);
 			lua_setfield(L, -2, names[i]);
 		}
 	}
