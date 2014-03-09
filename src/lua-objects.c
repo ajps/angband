@@ -346,6 +346,61 @@ static int push_num_charging(lua_State *L, const object_type *o_ptr)
 }
 
 
+static int push_chest(lua_State *L, const object_type *o_ptr)
+{
+	if (!object_is_known(o_ptr)) 
+		return 0;
+
+	/* May be "empty" */
+	if (!o_ptr->pval[DEFAULT_PVAL])
+		lua_pushstring(L, "empty");
+
+	/* May be "disarmed" */
+	else if (!is_locked_chest(o_ptr))
+	{
+		if (chest_trap_type(o_ptr) != 0)
+			lua_pushstring("disarmed")
+		else
+			lua_pushstring("unlocked");
+	}
+
+	/* Describe the traps, if any */
+	else
+	{
+		/* Describe the traps */
+		switch (chest_trap_type(o_ptr))
+		{
+			case 0:
+				lua_pushstring("locked");
+				break;
+
+			case CHEST_LOSE_STR:
+			case CHEST_LOSE_CON:
+				lua_pushstring("Poison Needle");
+				break;
+
+			case CHEST_POISON:
+			case CHEST_PARALYZE:
+				lua_pushstring("Gas Trap");
+				break;
+
+			case CHEST_EXPLODE:
+				lua_pushstring("Explosion Device");
+				break;
+
+			case CHEST_SUMMON:
+				lua_pushstring("Summoning Runes");
+				break;
+
+			default:
+				lua_pushstring("Multiple Traps");
+				break;
+		}
+	}
+
+	return 1;
+}
+
 /**
  * Pushes a table containing flags of the flag type `type` that are 
  * known by the player to be on the object `o_ptr`.  `udata_idx` is
@@ -449,6 +504,11 @@ int lua_object_meta_index(lua_State *L)
 		return push_combat(L, o_ptr);
 	} else if (streq(key, "light")) {
 		return push_light(L, o_ptr);
+	} else if (streq(key, "money") && tval_is_money(o_ptr) {
+		lua_pushnumber(L, o_ptr->pval[DEFAULT_PVAL]);
+		return 1;
+	} else if (streq(key, "chest") && tval_is_chest(o_ptr) {
+		push_chest(L, o_ptr);
 	} else if (streq(key, "nourishment")) {
 		return push_nourishment(L, o_ptr);
 	} else if (streq(key, "digging")) {
