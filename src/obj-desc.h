@@ -26,4 +26,6 @@ void object_kind_name(char *buf, size_t max, const object_kind *kind, bool easy_
 size_t obj_desc_name_format(char *buf, size_t max, size_t end, const char *fmt, const char *modstr, bool pluralise);
 size_t object_desc(char *buf, size_t max, const object_type *o_ptr, int mode);
 
+bool obj_desc_show_armor(const object_type *o_ptr);
+
 #endif /* OBJECT_DESC_H */

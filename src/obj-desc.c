@@ -338,7 +338,7 @@ static size_t obj_desc_name(char *buf, size_t max, size_t end,
 /*
  * Is o_ptr armor?
  */
-static bool obj_desc_show_armor(const object_type *o_ptr)
+bool obj_desc_show_armor(const object_type *o_ptr)
 {
 	if (o_ptr->ac || tval_is_armor(o_ptr)) return TRUE;
 

@@ -13,7 +13,7 @@
  *
  * b) the "Angband licence":
  *    This software may be copied and distributed for educational, research,
- *    and not for profit purposes provided that this copyright and statement
+ *    and not for profit purposes provided that this copyright and statement   
  *    are included in all such copies.  Other copyrights may also apply.
   */
 #include "angband.h"
@@ -27,8 +27,8 @@
 #include "obj-identify.h"
 #include "obj-tval.h"
 #include "obj-info.h"
-#include "project.h"
 #include "obj-slays.h"
+#include "project.h"
 
 static struct {
 	u16b index;				/* the OF_ index */
@@ -63,7 +63,7 @@ static struct {
  *
  * Rules should match object_info_out().
  */
-static s16b get_known_flag(object_type *o_ptr, int flag)
+static s16b get_known_flag(const object_type *o_ptr, int flag)
 {
 	bitflag flags[OF_SIZE];
 	s16b flag_value = 0;
@@ -134,6 +134,7 @@ static int push_light(lua_State *L, const object_type *o_ptr)
 	lua_setfield(L, -2, "radius");
 	lua_pushboolean(L, uses_fuel);
 	lua_setfield(L, -2, "uses_fuel");
+
 	if (uses_fuel) {
 		lua_pushnumber(L, o_ptr->timeout);
 		lua_setfield(L, -2, "fuel");
@@ -172,15 +173,61 @@ static int push_combat(lua_State *L, const object_type *o_ptr)
 	lua_pushboolean(L, thrown_effect);
 	lua_setfield(L, -2, "thrown_effect");
 
-	lua_pushboolean(L, impactful);
-	lua_setfield(L, -2, "impactful");
-
-	lua_pushnumber(L, break_chance);
-	lua_setfield(L, -2, "breakage_chance");
+	if (get_known_flag(o_ptr, OF_SHOW_MULT)) {
+		/* Includes shooting power as part of the multplier, if present */
+		lua_pushnumber(L, (o_ptr->sval % 10) + get_known_flag(o_ptr, OF_MIGHT));
+		lua_setfield(L, -2 , "shooting_multipler");
+	}
 
 	if (range) {
 		lua_pushnumber(L, range);
 		lua_setfield(L, -2, "range");
+	}
+
+	lua_pushnumber(L, break_chance);
+	lua_setfield(L, -2, "breakage_chance");
+
+	if (get_known_flag(o_ptr, OF_SHOW_DICE)) {
+		int dd, ds;
+		if (object_attack_plusses_are_visible(o_ptr)) {
+			dd = o_ptr->dd;
+			ds = o_ptr->ds;
+		} else {
+			dd = o_ptr->kind->dd;
+			ds = o_ptr->kind->ds;
+		}
+
+		lua_pushnumber(L, dd);
+		lua_setfield(L, -2, "dd");
+		lua_pushnumber(L, ds);
+		lua_setfield(L, -2, "ds");
+	}
+
+	/* Show weapon bonuses */
+	if ((tval_is_weapon(o_ptr) || o_ptr->to_d || o_ptr->to_h) && 
+			object_attack_plusses_are_visible(o_ptr)) {
+		lua_pushnumber(L, o_ptr->to_h);
+		lua_setfield(L, -2, "to_hit");
+		lua_pushnumber(L, o_ptr->to_d);
+		lua_setfield(L, -2, "to_damage");
+	}
+
+	lua_pushboolean(L, impactful);
+	lua_setfield(L, -2, "impactful");
+
+
+	if (obj_desc_show_armor(o_ptr)) {
+		if (object_defence_plusses_are_visible(o_ptr) || object_was_sensed(o_ptr))
+			lua_pushnumber(L, o_ptr->ac);
+		else
+			lua_pushnumber(L, o_ptr->kind->ac);
+
+		lua_setfield(L, -2, "ac");
+	}
+
+	if (object_defence_plusses_are_visible(o_ptr) && o_ptr->to_a) {
+		lua_pushnumber(L, o_ptr->to_a);
+		lua_setfield(L, -2, "ac_bonus");
 	}
 
 	num_entries = obj_known_blows(o_ptr, STAT_RANGE * 2, blow_info);
@@ -278,13 +325,33 @@ static int push_digging(lua_State *L, const object_type *o_ptr)
 	return 1;
 }
 
+static int push_charges(lua_State *L, const object_type *o_ptr)
+{
+	bool aware = object_flavor_is_aware(o_ptr) || (o_ptr->ident & IDENT_STORE);
+
+	/* Wands and Staffs have charges */
+	if (aware && tval_can_have_charges(o_ptr)) 
+		lua_pushnumber(L, o_ptr->pval[DEFAULT_PVAL]);
+	else
+		lua_pushnil(L);
+
+	return 1;
+}
+
+static int push_num_charging(lua_State *L, const object_type *o_ptr)
+{
+	/* Would be nice to push nil if the item couldn't be charging */
+	lua_pushnumber(L, number_charging(o_ptr));
+	return 1;
+}
+
 
 /**
  * Pushes a table containing flags of the flag type `type` that are 
  * known by the player to be on the object `o_ptr`.  `udata_idx` is
  * a stack index for the corresponding userdata.
  */
-static int push_flags_table(lua_State *L, int udata_idx, object_type *o_ptr, int type)
+static int push_flags_table(lua_State *L, int udata_idx, const object_type *o_ptr, int type)
 {
 	size_t i;
 	int flag_cache_idx;
