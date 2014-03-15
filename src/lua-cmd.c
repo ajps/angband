@@ -17,7 +17,7 @@
  */
 #include "angband.h"
 #include "lua-bindings.h"
-#include "game-cmd.h"
+#include "cmd-core.h"
 #include "lua-objects.h"
 
 /** 
@@ -75,7 +75,7 @@ static int push_direction_cmd(lua_State *L, cmd_code code)
 
 	dir = luaL_checkdirection(L, 1, FALSE);
 	cmdq_push(code);
-	cmd_set_arg_direction(cmdq_peek(), 0, dir);
+	cmd_set_arg_direction(cmdq_peek(), "direction", dir);
 
 	return 0;
 }
@@ -176,7 +176,7 @@ int lua_cmd_run_to(lua_State *L)
 	}
 
 	cmdq_push(CMD_PATHFIND);
-	cmd_set_arg_point(cmdq_peek(), 0, x, y);
+	cmd_set_arg_point(cmdq_peek(), "point", x, y);
 	return 0;
 }
 
@@ -194,9 +194,9 @@ int lua_cmd_use(lua_State *L)
 		target = luaL_checkdirection(L, 1, TRUE);
 	}
 
-	cmdq_push(CMD_USE_ANY);
-	cmd_set_arg_item(cmdq_peek(), 0, object->idx);
-	cmd_set_arg_target(cmdq_peek(), 1, target);
+	cmdq_push(CMD_USE);
+	cmd_set_arg_item(cmdq_peek(), "item", object->idx);
+	cmd_set_arg_target(cmdq_peek(), "target", target);
 
 	return 0;
 }
@@ -207,7 +207,6 @@ int lua_cmd_use(lua_State *L)
 int lua_cmd_drop(lua_State *L)
 {	
 	struct object_udata *object;
-	int target = DIR_UNKNOWN;
 	int number = 1;
 
 	object = luaL_checkudata(L, 1, "object");
@@ -217,8 +216,8 @@ int lua_cmd_drop(lua_State *L)
 		number = luaL_checknumber(L, 2);
 
 	cmdq_push(CMD_DROP);
-	cmd_set_arg_item(cmdq_peek(), 0, object->idx);
-	cmd_set_arg_number(cmdq_peek(), 1, number);
+	cmd_set_arg_item(cmdq_peek(), "item", object->idx);
+	cmd_set_arg_number(cmdq_peek(), "quantity", number);
 
 	return 0;
 }
