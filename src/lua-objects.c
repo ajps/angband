@@ -28,7 +28,9 @@
 #include "obj-tval.h"
 #include "obj-info.h"
 #include "obj-slays.h"
+#include "obj-chest.h"
 #include "project.h"
+#include "squelch.h"
 
 static struct {
 	u16b index;				/* the OF_ index */
@@ -348,55 +350,105 @@ static int push_num_charging(lua_State *L, const object_type *o_ptr)
 
 static int push_chest(lua_State *L, const object_type *o_ptr)
 {
-	if (!object_is_known(o_ptr)) 
-		return 0;
+	if (!object_is_known(o_ptr)) {
+		lua_pushstring(L, "unknown");
+	} 
 
-	/* May be "empty" */
-	if (!o_ptr->pval[DEFAULT_PVAL])
+	else if (!o_ptr->pval[DEFAULT_PVAL])
 		lua_pushstring(L, "empty");
 
-	/* May be "disarmed" */
-	else if (!is_locked_chest(o_ptr))
+	else if (!is_locked_chest(o_ptr)) 
 	{
 		if (chest_trap_type(o_ptr) != 0)
-			lua_pushstring("disarmed")
+			lua_pushstring(L, "disarmed");
 		else
-			lua_pushstring("unlocked");
+			lua_pushstring(L, "unlocked");
 	}
 
-	/* Describe the traps, if any */
 	else
 	{
 		/* Describe the traps */
 		switch (chest_trap_type(o_ptr))
 		{
 			case 0:
-				lua_pushstring("locked");
+				lua_pushstring(L, "locked");
 				break;
 
 			case CHEST_LOSE_STR:
 			case CHEST_LOSE_CON:
-				lua_pushstring("Poison Needle");
+//				lua_pushstring("trapped");
+				lua_pushstring(L, "Poison Needle");
 				break;
 
 			case CHEST_POISON:
 			case CHEST_PARALYZE:
-				lua_pushstring("Gas Trap");
+//				lua_pushstring("trapped");
+				lua_pushstring(L, "Gas Trap");
 				break;
 
 			case CHEST_EXPLODE:
-				lua_pushstring("Explosion Device");
+//				lua_pushstring("trapped");
+				lua_pushstring(L, "Explosion Device");
 				break;
 
 			case CHEST_SUMMON:
-				lua_pushstring("Summoning Runes");
+//				lua_pushstring("trapped");
+				lua_pushstring(L, "Summoning Runes");
 				break;
 
 			default:
-				lua_pushstring("Multiple Traps");
+//				lua_pushstring("trapped");
+				lua_pushstring(L, "Multiple Traps");
 				break;
 		}
 	}
+
+	return 1;
+}
+
+static int push_pseudo(lua_State *L, const object_type *o_ptr)
+{
+	const char *inscrip_text[] =
+	{
+		NULL,
+		"strange",
+		"average",
+		"magical",
+		"splendid",
+		"excellent",
+		"special",
+		"unknown"
+	};
+
+	int feel = object_pseudo(o_ptr);
+
+	/* No pseudo if we already know about it. */
+	if (object_is_known(o_ptr))
+		return 0;
+
+	if (feel)
+	{
+		/* cannot tell excellent vs strange vs splendid until wield */
+		if (!object_was_worn(o_ptr) && o_ptr->ego)
+			lua_pushstring(L, "ego");
+		else
+			lua_pushstring(L, inscrip_text[feel]);
+	}
+	else if (o_ptr->ident & IDENT_EMPTY)
+		lua_pushstring(L, "empty");
+	else if (object_was_worn(o_ptr))
+	{
+		if (wield_slot(o_ptr) == INVEN_WIELD || wield_slot(o_ptr) == INVEN_BOW)
+			lua_pushstring(L, "wielded");
+		else 
+			lua_pushstring(L, "worn");
+	}
+	else if (object_was_fired(o_ptr))
+		lua_pushstring(L,  "fired");
+	else if (!object_flavor_is_aware(o_ptr) && object_flavor_was_tried(o_ptr))
+		lua_pushstring(L, "tried");
+	else
+		lua_pushnil(L);
 
 	return 1;
 }
@@ -409,6 +461,7 @@ static int push_chest(lua_State *L, const object_type *o_ptr)
 static int push_flags_table(lua_State *L, int udata_idx, const object_type *o_ptr, int type)
 {
 	size_t i;
+	size_t nflags = 0;
 	int flag_cache_idx;
 
 	/* Grab the cache table, leave just that on the stack */
@@ -442,12 +495,18 @@ static int push_flags_table(lua_State *L, int udata_idx, const object_type *o_pt
 			if (flag == FLAG_SET) {
 				lua_pushboolean(L, TRUE);
 				lua_setfield(L, -2, flag_table[i].name);
+				nflags++;
 			} else if (flag != 0) {
 				lua_pushnumber(L, flag);				
 				lua_setfield(L, -2, flag_table[i].name);
+				nflags++;
 			}
 		}
 	}
+
+	/* Don't cache or return the table if there aren't any flags in it. */
+	if (nflags == 0) 
+		return 0;
 
 	/* Stash a reference in the cache */
 	lua_pushnumber(L, type);
@@ -497,6 +556,18 @@ int lua_object_meta_index(lua_State *L)
 	} else if (streq(key, "is_known")) {
 		lua_pushboolean(L, object_is_known(o_ptr));
 		return 1;
+	} else if (streq(key, "is_squelched")) {
+		lua_pushboolean(L, squelch_item_ok(o_ptr));
+		return 1;
+	} else if (streq(key, "flavor_known")) {
+		lua_pushboolean(L, object_flavor_is_aware(o_ptr));
+		return 1;
+	} else if (streq(key, "inscription")) {
+		if (o_ptr->note)
+			lua_pushstring(L, quark_str(o_ptr->note));
+		else
+			lua_pushnil(L);
+		return 1;
 	} else if (streq(key, "effect")) {
 		/* An effect object?  A number? */
 	} else if (streq(key, "type")) {
@@ -504,15 +575,21 @@ int lua_object_meta_index(lua_State *L)
 		return push_combat(L, o_ptr);
 	} else if (streq(key, "light")) {
 		return push_light(L, o_ptr);
-	} else if (streq(key, "money") && tval_is_money(o_ptr) {
+	} else if (streq(key, "money") && tval_is_money(o_ptr)) {
 		lua_pushnumber(L, o_ptr->pval[DEFAULT_PVAL]);
 		return 1;
-	} else if (streq(key, "chest") && tval_is_chest(o_ptr) {
-		push_chest(L, o_ptr);
+	} else if (streq(key, "chest") && tval_is_chest(o_ptr)) {
+		return push_chest(L, o_ptr);
 	} else if (streq(key, "nourishment")) {
 		return push_nourishment(L, o_ptr);
 	} else if (streq(key, "digging")) {
 		return push_digging(L, o_ptr);
+	} else if (streq(key, "pseudo_id")) {
+		return push_pseudo(L, o_ptr);
+	} else if (streq(key, "charges")) {
+		return push_charges(L, o_ptr);
+	} else if (streq(key, "charging")) {
+		return push_num_charging(L, o_ptr);
 	} else if (streq(key, "slays")) {
 		return push_flags_table(L, 1, o_ptr, OFT_SLAY);
 	} else if (streq(key, "resists")) {
