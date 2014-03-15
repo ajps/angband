@@ -1,6 +1,6 @@
 /*
  * File: lua-objects.c
- * Purpose: Implements object Lua userdata and functions for 
+ * Purpose: Implements object Lua userdata and functions for
  *          getting those from the dungeon.
  *
  * Copyright (c) 2014 Antony Sidwell
@@ -13,7 +13,7 @@
  *
  * b) the "Angband licence":
  *    This software may be copied and distributed for educational, research,
- *    and not for profit purposes provided that this copyright and statement   
+ *    and not for profit purposes provided that this copyright and statement
  *    are included in all such copies.  Other copyrights may also apply.
   */
 #include "angband.h"
@@ -140,14 +140,13 @@ static int push_light(lua_State *L, const object_type *o_ptr)
 	if (uses_fuel) {
 		lua_pushnumber(L, o_ptr->timeout);
 		lua_setfield(L, -2, "fuel");
-	}	
-	
+	}
+
 	lua_pushnumber(L, refuel_turns);
 	lua_setfield(L, -2, "max_refuel");
-	
+
 	return 1;
 }
-
 
 /**
  * Pushes a table containing a whole bundle of combat-related info about
@@ -157,7 +156,6 @@ static int push_combat(lua_State *L, const object_type *o_ptr)
 {
 	int range, break_chance;
 	bool impactful, thrown_effect, too_heavy;
-
 	bool nonweap_slay = FALSE;
 	int normal_damage;
 	int slay_damage[SL_MAX];
@@ -206,7 +204,7 @@ static int push_combat(lua_State *L, const object_type *o_ptr)
 	}
 
 	/* Show weapon bonuses */
-	if ((tval_is_weapon(o_ptr) || o_ptr->to_d || o_ptr->to_h) && 
+	if ((tval_is_weapon(o_ptr) || o_ptr->to_d || o_ptr->to_h) &&
 			object_attack_plusses_are_visible(o_ptr)) {
 		lua_pushnumber(L, o_ptr->to_h);
 		lua_setfield(L, -2, "to_hit");
@@ -217,13 +215,12 @@ static int push_combat(lua_State *L, const object_type *o_ptr)
 	lua_pushboolean(L, impactful);
 	lua_setfield(L, -2, "impactful");
 
-
 	if (obj_desc_show_armor(o_ptr)) {
 		if (object_defence_plusses_are_visible(o_ptr) || object_was_sensed(o_ptr))
 			lua_pushnumber(L, o_ptr->ac);
 		else
 			lua_pushnumber(L, o_ptr->kind->ac);
-
+		
 		lua_setfield(L, -2, "ac");
 	}
 
@@ -233,7 +230,6 @@ static int push_combat(lua_State *L, const object_type *o_ptr)
 	}
 
 	num_entries = obj_known_blows(o_ptr, STAT_RANGE * 2, blow_info);
-
 	if (!num_entries) {
 		/* No blows with this object means all the following melee
 		   info is meaningless or misleading - dont add it */
@@ -242,12 +238,11 @@ static int push_combat(lua_State *L, const object_type *o_ptr)
 
 	lua_pushnumber(L, (lua_Number) blow_info[0].centiblows / 100);
 	lua_setfield(L, -2, "current_blows");
-	
 	if (num_entries > 1) {
 		lua_newtable(L);
 		for (i = 0; i < num_entries; i++) {
 			lua_pushnumber(L, i); /* array key */
-			lua_newtable(L); 
+			lua_newtable(L);
 			lua_pushnumber(L, (lua_Number) blow_info[i].str_plus);
 			lua_setfield(L, -2, "str_plus");
 			lua_pushnumber(L, (lua_Number) blow_info[i].dex_plus);
@@ -263,7 +258,7 @@ static int push_combat(lua_State *L, const object_type *o_ptr)
 
 	lua_pushnumber(L, (lua_Number) normal_damage / 10);
 	lua_setfield(L, -2, "avg_damage");
-
+	
 	lua_pushboolean(L, nonweap_slay);
 	lua_setfield(L, -2, "nonweapon_slays");
 
@@ -278,9 +273,8 @@ static int push_combat(lua_State *L, const object_type *o_ptr)
 
 	return 1;
 }
-
 /**
- * Pushes the nourishment provided by the given object on to the stack.  
+ * Pushes the nourishment provided by the given object on to the stack.
  * If the object is not fully known but can be eaten, this is 'true',
  * otherwise it is the number of turns of nourishment or nil is this is none.
  */
@@ -298,7 +292,6 @@ static int push_nourishment(lua_State *L, const object_type *o_ptr)
 
 	return 1;
 }
-
 /**
  * Pushes a table containing the number of turns it will take
  * to dig the diggable terrain types if the given object is
@@ -315,7 +308,6 @@ static int push_digging(lua_State *L, const object_type *o_ptr)
 
 	/* Our return value */
 	lua_newtable(L);
-
 	for (i = DIGGING_RUBBLE; i < DIGGING_DOORS; i++)
 	{
 		if (deciturns[i] > 0) {
@@ -332,7 +324,7 @@ static int push_charges(lua_State *L, const object_type *o_ptr)
 	bool aware = object_flavor_is_aware(o_ptr) || (o_ptr->ident & IDENT_STORE);
 
 	/* Wands and Staffs have charges */
-	if (aware && tval_can_have_charges(o_ptr)) 
+	if (aware && tval_can_have_charges(o_ptr))
 		lua_pushnumber(L, o_ptr->pval[DEFAULT_PVAL]);
 	else
 		lua_pushnil(L);
@@ -347,24 +339,20 @@ static int push_num_charging(lua_State *L, const object_type *o_ptr)
 	return 1;
 }
 
-
 static int push_chest(lua_State *L, const object_type *o_ptr)
 {
 	if (!object_is_known(o_ptr)) {
 		lua_pushstring(L, "unknown");
-	} 
-
+	}
 	else if (!o_ptr->pval[DEFAULT_PVAL])
 		lua_pushstring(L, "empty");
-
-	else if (!is_locked_chest(o_ptr)) 
+	else if (!is_locked_chest(o_ptr))
 	{
 		if (chest_trap_type(o_ptr) != 0)
 			lua_pushstring(L, "disarmed");
 		else
 			lua_pushstring(L, "unlocked");
 	}
-
 	else
 	{
 		/* Describe the traps */
@@ -373,36 +361,30 @@ static int push_chest(lua_State *L, const object_type *o_ptr)
 			case 0:
 				lua_pushstring(L, "locked");
 				break;
-
 			case CHEST_LOSE_STR:
 			case CHEST_LOSE_CON:
 //				lua_pushstring("trapped");
 				lua_pushstring(L, "Poison Needle");
 				break;
-
 			case CHEST_POISON:
 			case CHEST_PARALYZE:
 //				lua_pushstring("trapped");
 				lua_pushstring(L, "Gas Trap");
 				break;
-
 			case CHEST_EXPLODE:
 //				lua_pushstring("trapped");
 				lua_pushstring(L, "Explosion Device");
 				break;
-
 			case CHEST_SUMMON:
 //				lua_pushstring("trapped");
 				lua_pushstring(L, "Summoning Runes");
 				break;
-
 			default:
 //				lua_pushstring("trapped");
 				lua_pushstring(L, "Multiple Traps");
 				break;
 		}
 	}
-
 	return 1;
 }
 
@@ -425,7 +407,6 @@ static int push_pseudo(lua_State *L, const object_type *o_ptr)
 	/* No pseudo if we already know about it. */
 	if (object_is_known(o_ptr))
 		return 0;
-
 	if (feel)
 	{
 		/* cannot tell excellent vs strange vs splendid until wield */
@@ -440,7 +421,7 @@ static int push_pseudo(lua_State *L, const object_type *o_ptr)
 	{
 		if (wield_slot(o_ptr) == INVEN_WIELD || wield_slot(o_ptr) == INVEN_BOW)
 			lua_pushstring(L, "wielded");
-		else 
+		else
 			lua_pushstring(L, "worn");
 	}
 	else if (object_was_fired(o_ptr))
@@ -449,12 +430,31 @@ static int push_pseudo(lua_State *L, const object_type *o_ptr)
 		lua_pushstring(L, "tried");
 	else
 		lua_pushnil(L);
-
 	return 1;
 }
 
+const char *origins[ORIGIN_MAX] = { "none", "floor", "drop", "chest", 
+	"drop_special", "drop_pit", "drop_vault", "special", "pit", "vault",
+	"labyrinth", "cavern", "rubble", "mixed", "stats", "acquire", "drop_breed",
+	"drop_summon", "store", "stolen", "birth", "drop_unknown", "cheat",
+	"drop_poly", "drop_wizard" 
+};
+
+static int push_origin(lua_State *L, const object_type *o_ptr)
+{
+	lua_pushstring(L, origins[o_ptr->origin]);
+	return 1;
+}
+
+static int push_origin_depth(lua_State *L, const object_type *o_ptr)
+{
+	lua_pushnumber(L, o_ptr->origin_depth);
+	return 1;
+}
+
+
 /**
- * Pushes a table containing flags of the flag type `type` that are 
+ * Pushes a table containing flags of the flag type `type` that are
  * known by the player to be on the object `o_ptr`.  `udata_idx` is
  * a stack index for the corresponding userdata.
  */
@@ -467,12 +467,12 @@ static int push_flags_table(lua_State *L, int udata_idx, const object_type *o_pt
 	/* Grab the cache table, leave just that on the stack */
 	lua_getuservalue(L, udata_idx);
 	lua_getfield(L, -1, "flags");
- 	lua_remove(L, -2);  
+ 	lua_remove(L, -2);
 	flag_cache_idx = lua_gettop(L);
 
 	/* Look for a table for the required flag type */
-	lua_pushnumber(L, type); 
-	lua_gettable(L, -2); 
+	lua_pushnumber(L, type);
+	lua_gettable(L, -2);
 
 	if (lua_istable(L, -1)) {
 		/* remove the cache table to return the retrieved flags  */
@@ -488,7 +488,7 @@ static int push_flags_table(lua_State *L, int udata_idx, const object_type *o_pt
 	/* Create new table of values */
 	for (i = 0; i < OF_MAX; i++) {
 		s16b flag = 0;
-
+		
 		if (flag_table[i].type == type) {
 			flag = get_known_flag(o_ptr, flag_table[i].index);
 
@@ -497,7 +497,7 @@ static int push_flags_table(lua_State *L, int udata_idx, const object_type *o_pt
 				lua_setfield(L, -2, flag_table[i].name);
 				nflags++;
 			} else if (flag != 0) {
-				lua_pushnumber(L, flag);				
+				lua_pushnumber(L, flag);
 				lua_setfield(L, -2, flag_table[i].name);
 				nflags++;
 			}
@@ -505,20 +505,20 @@ static int push_flags_table(lua_State *L, int udata_idx, const object_type *o_pt
 	}
 
 	/* Don't cache or return the table if there aren't any flags in it. */
-	if (nflags == 0) 
+	if (nflags == 0)
 		return 0;
 
 	/* Stash a reference in the cache */
 	lua_pushnumber(L, type);
 	lua_pushvalue(L, -2);
-	lua_settable(L, flag_cache_idx); 
+	lua_settable(L, flag_cache_idx);
 	lua_remove(L, flag_cache_idx);
 
 	return 1;
 }
 
 /**
- * This is called whenever you attempt to index an object, e.g. obj.use() 
+ * This is called whenever you attempt to index an object, e.g. obj.use()
  * would call this to find the value of 'use', and then attempt to
  * call it as a function with no arguments.
  *
@@ -534,8 +534,8 @@ int lua_object_meta_index(lua_State *L)
 
 	obj = luaL_checkudata(L, 1, "object");
 	key = luaL_checkstring(L, 2);
-
 	o_ptr = object_from_item_idx(obj->idx);
+
 	/* TODO: check for a valid object? */
 
 	/* METHODS */
@@ -545,7 +545,7 @@ int lua_object_meta_index(lua_State *L)
 	} else if (streq(key, "drop")) {
 		lua_pushcfunction(L, lua_cmd_drop);
 		return 1;
-	} 
+	}
 
 	/* PROPERTIES */
 	else if (streq(key, "name")) {
@@ -571,6 +571,12 @@ int lua_object_meta_index(lua_State *L)
 	} else if (streq(key, "effect")) {
 		/* An effect object?  A number? */
 	} else if (streq(key, "type")) {
+		 lua_pushstring(L, o_ptr->kind->name);
+		 return 1;
+	} else if (streq(key, "origin")) {
+		return push_origin(L, o_ptr);
+	} else if (streq(key, "origin_depth")) {
+		return push_origin_depth(L, o_ptr);
 	} else if (streq(key, "combat")) {
 		return push_combat(L, o_ptr);
 	} else if (streq(key, "light")) {
@@ -621,7 +627,6 @@ int lua_object_meta_index(lua_State *L)
 	} else if (streq(key, "knowledge")) {
 		return push_flags_table(L, 1, o_ptr, OFT_INT);
 	}
-
 	return 0;
 }
 
