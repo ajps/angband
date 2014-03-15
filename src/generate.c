@@ -88,27 +88,6 @@ struct vault *vaults;
  * rooms on a grid.
  */
 
-/**
- * Profile used for generating the town level.
- */
-struct cave_profile town_profile = {
-    /* name builder block dun_rooms dun_unusual max_rarity n_room_profiles */
-    "town-default", town_gen, 1, 50, 200, 2, 0,
-
-    /* name rnd chg con pen jct */
-    {"tunnel-default", 10, 30, 15, 25, 90},
-
-    /* name den rng mag mc qua qc */
-    {"streamer-default", 5, 2, 3, 90, 2, 40},
-
-    /* room_profiles -- not applicable */
-    NULL,
-
-    /* cutoff -- not applicable */
-    0
-};
-
-
 /* name function height width min-depth pit? rarity %cutoff */
 struct room_profile classic_rooms[] = {
     /* greater vaults only have rarity 1 but they have other checks */
@@ -133,7 +112,7 @@ struct room_profile classic_rooms[] = {
 };
 
 /* name function height width min-depth pit? rarity %cutoff */
-struct room_profile sample1_rooms[] = {
+struct room_profile modified_rooms[] = {
     /* really big rooms have rarity 0 but they have other checks */
     {"greater vault", build_greater_vault, 44, 66, 35, FALSE, 0, 100},
 	{"huge room", build_huge, 44, 66, 40, FALSE, 0, 100},
@@ -162,7 +141,41 @@ struct room_profile sample1_rooms[] = {
  * Profiles used for generating dungeon levels.
  */
 struct cave_profile cave_profiles[] = {
-    {
+	{
+		"town", town_gen, 1, 00, 200, 0, 0,
+
+		/* tunnels -- not applicable */
+		{"tunnel-null", 0, 0, 0, 0, 0},
+
+		/* streamers -- not applicable */
+		{"streamer-null", 0, 0, 0, 0, 0, 0},
+
+		/* room_profiles -- not applicable */
+		NULL,
+
+		/* cutoff -- not applicable */
+		-1
+	},
+	/* Points to note about this particular profile:
+	 * - block size is 1, which essentially means no blocks
+	 * - more comments at the definition of modified_gen in gen-cave.c */
+	{
+		/* name builder block dun_rooms dun_unusual max_rarity #room_profiles */
+		"modified", modified_gen, 1, 50, 250, 2, N_ELEMENTS(modified_rooms),
+
+		/* name rnd chg con pen jct */
+		{"tunnel-classic", 10, 30, 15, 25, 90},
+
+		/* name den rng mag mc qua qc */
+		{"streamer-classic", 5, 2, 3, 90, 2, 40},
+
+		/* room_profiles */
+		modified_rooms,
+
+		/* cutoff  -- not applicable because profile currently unused */
+		-1
+	},
+	{
 		"labyrinth", labyrinth_gen, 1, 0, 200, 0, 0,
 
 		/* tunnels -- not applicable */
@@ -174,9 +187,9 @@ struct cave_profile cave_profiles[] = {
 		/* room_profiles -- not applicable */
 		NULL,
 
-		/* cutoff -- unused because of internal checks in labyrinth_gen  */
-		100
-    },
+		/* cutoff -- unused because of special labyrinth_check  */
+		-1
+	},
     {
 		"cavern", cavern_gen, 1, 0, 200, 0, 0,
 
@@ -189,7 +202,7 @@ struct cave_profile cave_profiles[] = {
 		/* room_profiles -- not applicable */
 		NULL,
 
-		/* cutoff -- debug  */
+		/* cutoff */
 		10
     },
     {
@@ -208,32 +221,6 @@ struct cave_profile cave_profiles[] = {
 		/* cutoff */
 		100
     }
-};
-
-
-/**
- * Experimental profile using all the new stuff.  To test, edit in the test
- * block of code in cave_generate below.
- *
- * Points to note about this particular profile:
- * - block size is 1, which essentially means no blocks
- * - there are more comments at the definition of sample1_gen in gen-cave.c
- */
-struct cave_profile sample1 = {
-	/* name builder block dun_rooms dun_unusual max_rarity n_room_profiles */
-	"sample1", sample1_gen, 1, 50, 250, 2, N_ELEMENTS(sample1_rooms),
-
-	/* name rnd chg con pen jct */
-	{"tunnel-classic", 10, 30, 15, 25, 90},
-
-	/* name den rng mag mc qua qc */
-	{"streamer-classic", 5, 2, 3, 90, 2, 40},
-
-	/* room_profiles */
-	sample1_rooms,
-
-	/* cutoff */
-	100
 };
 
 
@@ -333,8 +320,8 @@ static void cave_clear(struct cave *c, struct player *p) {
 
 
     /* Clear flags and flow information. */
-    for (y = 0; y < DUNGEON_HGT; y++) {
-		for (x = 0; x < DUNGEON_WID; x++) {
+    for (y = 0; y < c->height; y++) {
+		for (x = 0; x < c->width; x++) {
 			/* Erase features */
 			c->feat[y][x] = 0;
 
@@ -456,6 +443,100 @@ static int calc_mon_feeling(struct cave *c)
     return 9;
 }
 
+/**
+ * Do d_m's prime check for labyrinths
+ */
+bool labyrinth_check(struct cave *c)
+{
+    /* There's a base 2 in 100 to accept the labyrinth */
+    int chance = 2;
+
+    /* If we're too shallow then don't do it */
+    if (c->depth < 13) return FALSE;
+
+    /* Don't try this on quest levels, kids... */
+    if (is_quest(c->depth)) return FALSE;
+
+    /* Certain numbers increase the chance of having a labyrinth */
+    if (c->depth % 3 == 0) chance += 1;
+    if (c->depth % 5 == 0) chance += 1;
+    if (c->depth % 7 == 0) chance += 1;
+    if (c->depth % 11 == 0) chance += 1;
+    if (c->depth % 13 == 0) chance += 1;
+
+    /* Only generate the level if we pass a check */
+    if (randint0(100) >= chance) return FALSE;
+
+	/* Successfully ran the gauntlet! */
+	return TRUE;
+}
+
+/**
+ * Find a cave_profile by name
+ */
+const struct cave_profile *find_cave_profile(char *name)
+{
+	size_t i;
+
+	for (i = 0; i < N_ELEMENTS(cave_profiles); i++) {
+		const struct cave_profile *profile;
+
+		profile = &cave_profiles[i];
+		if (!strcmp(name, profile->name))
+			return profile;
+	}
+
+	/* Not there */
+	return NULL;
+}
+
+/**
+ * Choose a cave profile
+ */
+const struct cave_profile *choose_profile(struct cave *c)
+{
+	const struct cave_profile *profile = NULL;
+
+	/* A bit of a hack, but worth it for now NRM */
+	if (player->noscore & NOSCORE_JUMPING) {
+		char name[30];
+
+		/* Cancel the query */
+		player->noscore &= ~(NOSCORE_JUMPING);
+
+		/* Ask debug players for the profile they want */
+		if (get_string("Profile name (eg classic): ", name, sizeof(name)))
+			profile = find_cave_profile(name);
+
+		/* If no valid profile name given, fall through */
+		if (profile) return profile;
+	}
+
+	/* Make the profile choice */
+	if (c->depth == 0)
+		profile = find_cave_profile("town");
+	else if (is_quest(c->depth))
+		/* Quest levels must be normal levels */
+		profile = find_cave_profile("classic");
+	else if (labyrinth_check(c))
+		profile = find_cave_profile("labyrinth");
+	else {
+		int perc = randint0(100);
+		size_t i;
+		for (i = 0; i < N_ELEMENTS(cave_profiles); i++) {
+			profile = &cave_profiles[i];
+			if (profile->cutoff >= perc) break;
+		}
+	}
+
+	/* Return the profile or fail horribly */
+	if (profile)
+		return profile;
+	else
+		quit("Failed to find cave profile!");
+
+	return NULL;
+}
 
 /**
  * Generate a random level.
@@ -465,6 +546,12 @@ static int calc_mon_feeling(struct cave *c)
 void cave_generate(struct cave *c, struct player *p) {
     const char *error = "no generation";
     int y, x, tries = 0;
+	struct cave *chunk;
+
+    /* Start with dungeon-wide permanent rock */
+	cave_clear(c, p);
+    fill_rectangle(c, 0, 0, DUNGEON_HGT - 1, DUNGEON_WID - 1, FEAT_PERM,
+				   SQUARE_NONE);
 
     assert(c);
 
@@ -475,7 +562,6 @@ void cave_generate(struct cave *c, struct player *p) {
 		struct dun_data dun_body;
 
 		error = NULL;
-		cave_clear(c, p);
 
 		/* Mark the dungeon as being unready (to avoid artifact loss, etc) */
 		character_dungeon = FALSE;
@@ -483,41 +569,16 @@ void cave_generate(struct cave *c, struct player *p) {
 		/* Allocate global data (will be freed when we leave the loop) */
 		dun = &dun_body;
 
-		if (p->depth == 0) {
-			dun->profile = &town_profile;
-			dun->profile->builder(c, p);
-		} else if (is_quest(c->depth)) {
-		
-			/* Quest levels must be normal levels */
-			dun->profile = &cave_profiles[N_ELEMENTS(cave_profiles) - 1];
-			dun->profile->builder(c, p);
-#if 0
-			/* Replacing #if 0 with #if 1 will force the use of the sample1
-			 * profile except in quest levels and the town.  This is handy for
-			 * experimenting with new generation methods.
-			 */
-		} else if (1) {
-			dun->profile = &sample1;
-			dun->profile->builder(c, p);
-#endif
-		} else {	
-			int perc = randint0(100);
-			size_t last = N_ELEMENTS(cave_profiles) - 1;
-			size_t i;
-			for (i = 0; i < N_ELEMENTS(cave_profiles); i++) {
-				bool ok;
-				const struct cave_profile *profile;
-
-				profile = dun->profile = &cave_profiles[i];
-				if (i < last && profile->cutoff < perc) continue;
-
-				ok = dun->profile->builder(c, p);
-				if (ok) break;
-			}
+		/* Choose a profile and build the level */
+		dun->profile = choose_profile(c);
+		chunk = dun->profile->builder(p);
+		if (!chunk) {
+			error = "Failed to find builder";
+			continue;
 		}
 
 		/* Ensure quest monsters */
-		if (is_quest(c->depth)) {
+		if (is_quest(chunk->depth)) {
 			int i;
 			for (i = 1; i < z_info->r_max; i++) {
 				monster_race *r_ptr = &r_info[i];
@@ -526,43 +587,56 @@ void cave_generate(struct cave *c, struct player *p) {
 				/* The monster must be an unseen quest monster of this depth. */
 				if (r_ptr->cur_num > 0) continue;
 				if (!rf_has(r_ptr->flags, RF_QUESTOR)) continue;
-				if (r_ptr->level != c->depth) continue;
+				if (r_ptr->level != chunk->depth) continue;
 	
 				/* Pick a location and place the monster */
-				find_empty(c, &y, &x);
-				place_new_monster(c, y, x, r_ptr, TRUE, TRUE, ORIGIN_DROP);
+				find_empty(chunk, &y, &x);
+				place_new_monster(chunk, y, x, r_ptr, TRUE, TRUE, ORIGIN_DROP);
 			}
 		}
 
-		/* Place dungeon squares to trigger feeling (not in town) */
-		if (player->depth)
-			place_feeling(c);
-		
-		c->feeling = calc_obj_feeling(c) + calc_mon_feeling(c);
+		/* Clear generation flags. */
+		for (y = 0; y < chunk->height; y++) {
+			for (x = 0; x < chunk->width; x++) {
+				sqinfo_off(chunk->info[y][x], SQUARE_WALL_INNER);
+				sqinfo_off(chunk->info[y][x], SQUARE_WALL_OUTER);
+				sqinfo_off(chunk->info[y][x], SQUARE_WALL_SOLID);
+				sqinfo_off(chunk->info[y][x], SQUARE_MON_RESTRICT);
+			}
+		}
 
 		/* Regenerate levels that overflow their maxima */
-		if (o_max >= z_info->o_max) 
+		if (cave_object_max(chunk) >= z_info->o_max)
 			error = "too many objects";
-		if (cave_monster_max(cave) >= z_info->m_max)
+		if (cave_monster_max(chunk) >= z_info->m_max)
 			error = "too many monsters";
 
 		if (error) ROOM_LOG("Generation restarted: %s.", error);
     }
 
-    FREE(cave_squares);
-    cave_squares = NULL;
-
     if (error) quit_fmt("cave_generate() failed 100 times!");
 
-	/* Clear generation flags. */
-	for (y = 0; y < c->height; y++) {
-		for (x = 0; x < c->width; x++) {
-			sqinfo_off(c->info[y][x], SQUARE_WALL_INNER);
-			sqinfo_off(c->info[y][x], SQUARE_WALL_OUTER);
-			sqinfo_off(c->info[y][x], SQUARE_WALL_SOLID);
-			sqinfo_off(c->info[y][x], SQUARE_MON_RESTRICT);
-		}
+	/* Copy into the cave */
+	if (!chunk_copy(c, chunk, 0, 0, 0, 0))
+		quit_fmt("chunk_copy() level bounds failed!");
+
+	/* Free it TODO make this process more robust */
+	if (chunk_find(chunk)) chunk_list_remove(chunk->name);
+	cave_free(chunk);
+
+	/* Place dungeon squares to trigger feeling (not in town) */
+	if (player->depth)
+		place_feeling(c);
+
+	/* Save the town */
+	else if (!chunk_find_name("Town")) {
+		struct cave *town = chunk_write(0, 0, TOWN_HGT, TOWN_WID, FALSE,
+										FALSE, FALSE, TRUE);
+		town->name = string_make("Town");
+		chunk_list_add(town);
 	}
+
+	c->feeling = calc_obj_feeling(c) + calc_mon_feeling(c);
 
     /* The dungeon is ready */
     character_dungeon = TRUE;

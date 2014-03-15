@@ -21,7 +21,7 @@
 #include "cave.h"
 #include "cmds.h"
 #include "files.h"
-#include "game-cmd.h"
+#include "cmd-core.h"
 #include "keymap.h"
 #include "monster.h"
 #include "textui.h"
@@ -76,7 +76,7 @@ static struct cmd_info cmd_item[] =
 	{ "Quaff a potion", { 'q' }, CMD_QUAFF },
 	{ "Read a scroll", { 'r' }, CMD_READ_SCROLL, NULL, player_can_read_prereq },
 	{ "Fuel your light source", { 'F' }, CMD_REFILL, NULL, player_can_refuel_prereq },
-	{ "Use an item", { 'U', 'X' }, CMD_USE_ANY }
+	{ "Use an item", { 'U', 'X' }, CMD_USE }
 };
 
 /* General actions */
@@ -94,8 +94,8 @@ static struct cmd_info cmd_action[] =
 	{ "Toggle search mode", { 'S', '#' }, CMD_TOGGLE_SEARCH },
 	{ "Open a door or a chest", { 'o' }, CMD_OPEN },
 	{ "Close a door", { 'c' }, CMD_CLOSE },
-	{ "Fire at nearest target", { 'h', KC_TAB }, CMD_NULL, textui_cmd_fire_at_nearest },
-	{ "Throw an item", { 'v' }, CMD_THROW, textui_cmd_throw },
+	{ "Fire at nearest target", { 'h', KC_TAB }, CMD_NULL, do_cmd_fire_at_nearest },
+	{ "Throw an item", { 'v' }, CMD_THROW },
 	{ "Walk into a trap", { 'W', '-' }, CMD_JUMP, NULL },
 };
 
@@ -112,9 +112,9 @@ static struct cmd_info cmd_item_manage[] =
 static struct cmd_info cmd_info[] =
 {
 	{ "Browse a book", { 'b', 'P' }, CMD_BROWSE_SPELL, textui_spell_browse },
-	{ "Gain new spells", { 'G' }, CMD_STUDY_BOOK, textui_obj_study, player_can_study_prereq },
-	{ "Cast a spell", { 'm' }, CMD_CAST, textui_obj_cast, player_can_cast_prereq },
-	{ "Cast a spell", { 'p' }, CMD_CAST, textui_obj_cast, player_can_cast_prereq },
+	{ "Gain new spells", { 'G' }, CMD_STUDY, NULL, player_can_study_prereq },
+	{ "Cast a spell", { 'm' }, CMD_CAST, NULL, player_can_cast_prereq },
+	{ "Cast a spell", { 'p' }, CMD_CAST, NULL, player_can_cast_prereq },
 	{ "Full dungeon map", { 'M' }, CMD_NULL, do_cmd_view_map },
 	{ "Toggle ignoring of items", { 'K', 'O' }, CMD_NULL, textui_cmd_toggle_ignore },
 	{ "Display visible item list", { ']' }, CMD_NULL, do_cmd_itemlist },
@@ -695,9 +695,8 @@ static void textui_process_click(ui_event e)
 		if (e.mouse.mods & KC_MOD_SHIFT) {
 			/* shift-click - cast magic */
 			if (e.mouse.button == 1) {
-				textui_obj_cast();
-			} else
-			if (e.mouse.button == 2) {
+				cmdq_push(CMD_CAST);
+			} else if (e.mouse.button == 2) {
 				Term_keypress('i',0);
 			}
 		} else
@@ -711,7 +710,7 @@ static void textui_process_click(ui_event e)
 					cmdq_push(CMD_GO_DOWN);
 			} else
 			if (e.mouse.button == 2) {
-				cmdq_push(CMD_USE_UNAIMED);
+				cmdq_push(CMD_USE);
 			}
 		} else
 		if (e.mouse.mods & KC_MOD_ALT) {
@@ -750,20 +749,20 @@ static void textui_process_click(ui_event e)
 			if (e.mouse.mods & KC_MOD_SHIFT) {
 				/* shift-click - run */
 				cmdq_push(CMD_RUN);
-				cmd_set_arg_direction(cmdq_peek(), 0, coords_to_dir(y,x));
+				cmd_set_arg_direction(cmdq_peek(), "direction", coords_to_dir(y,x));
 				/*if ((y-player->py >= -1) && (y-player->py <= 1)
 					&& (x-player->px >= -1) && (x-player->px <= 1)) {
 					cmdq_push(CMD_JUMP);
-					cmd_set_arg_direction(cmdq_peek(), 0, coords_to_dir(y,x));
+					cmd_set_arg_direction(cmdq_peek(), "direction", coords_to_dir(y,x));
 				} else {
 				  cmdq_push(CMD_RUN);
-				  cmd_set_arg_direction(cmdq_peek(), 0, coords_to_dir(y,x));
+				  cmd_set_arg_direction(cmdq_peek(), "direction", coords_to_dir(y,x));
 				}*/
 			} else
 			if (e.mouse.mods & KC_MOD_CONTROL) {
 				/* control-click - alter */
 				cmdq_push(CMD_ALTER);
-				cmd_set_arg_direction(cmdq_peek(), 0, coords_to_dir(y,x));
+				cmd_set_arg_direction(cmdq_peek(), "direction", coords_to_dir(y,x));
 			} else
 			if (e.mouse.mods & KC_MOD_ALT) {
 				/* alt-click - look */
@@ -771,7 +770,7 @@ static void textui_process_click(ui_event e)
 					msg("Target Selected.");
 				}
 				//cmdq_push(CMD_LOOK);
-				//cmd_set_arg_point(cmdq_peek(), 0, y, x);
+				//cmd_set_arg_point(cmdq_peek(), "point", y, x);
 			} else
 			{
 				/* pathfind does not work well on trap detection borders,
@@ -779,10 +778,10 @@ static void textui_process_click(ui_event e)
 				if ((y-player->py >= -1) && (y-player->py <= 1)
 					&& (x-player->px >= -1) && (x-player->px <= 1)) {
 					cmdq_push(CMD_WALK);
-					cmd_set_arg_direction(cmdq_peek(), 0, coords_to_dir(y,x));
+					cmd_set_arg_direction(cmdq_peek(), "direction", coords_to_dir(y,x));
 				} else {
 					cmdq_push(CMD_PATHFIND);
-					cmd_set_arg_point(cmdq_peek(), 0, y, x);
+					cmd_set_arg_point(cmdq_peek(), "point", y, x);
 				}
 			}
 		}
@@ -799,23 +798,20 @@ static void textui_process_click(ui_event e)
 		} else {
 			target_set_location(y,x);
 		}
+
 		if (e.mouse.mods & KC_MOD_SHIFT) {
 			/* shift-click - cast spell at target */
-			if (textui_obj_cast_ret() >= 0) {
-				cmd_set_arg_target(cmdq_peek(), 1, DIR_TARGET);
-			}
-		} else
-		if (e.mouse.mods & KC_MOD_CONTROL) {
+			cmdq_push(CMD_CAST);
+			cmd_set_arg_target(cmdq_peek(), "target", DIR_TARGET);
+		} else if (e.mouse.mods & KC_MOD_CONTROL) {
 			/* control-click - fire at target */
-			cmdq_push(CMD_USE_AIMED);
-			cmd_set_arg_target(cmdq_peek(), 1, DIR_TARGET);
-		} else
-		if (e.mouse.mods & KC_MOD_ALT) {
+			cmdq_push(CMD_USE);
+			cmd_set_arg_target(cmdq_peek(), "target", DIR_TARGET);
+		} else if (e.mouse.mods & KC_MOD_ALT) {
 			/* alt-click - throw at target */
 			cmdq_push(CMD_THROW);
-			cmd_set_arg_target(cmdq_peek(), 1, DIR_TARGET);
-		} else
-		{
+			cmd_set_arg_target(cmdq_peek(), "target", DIR_TARGET);
+		} else {
 			//msg("Target set.");
 			/* see if the click was adjacent to the player */
 			if ((y-player->py >= -1) && (y-player->py <= 1)

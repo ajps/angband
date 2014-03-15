@@ -1672,7 +1672,7 @@ static bool project_o(int who, int r, int y, int x, int dam, int typ)
 		project_object_handler_f object_handler = gf_object_handler(typ);
 
 		/* Get the object */
-		o_ptr = object_byid(this_o_idx);
+		o_ptr = cave_object(cave, this_o_idx);
 		context.o_ptr = o_ptr;
 
 		/* Get the next object */
@@ -2215,7 +2215,7 @@ static bool project_p(int who, int r, int y, int x, int dam, int typ)
 		take_hit(player, dam, killer);
 
 	/* Disturb */
-	disturb(player, 1, 0);
+	disturb(player, 1);
 
 	/* Return "Anything seen?" */
 	return (obvious);
@@ -2640,7 +2640,7 @@ bool project(int who, int rad, int y, int x, int dam, int typ, int flg,
 							int yy = y + ddy_ddd[i];
 							int xx = x + ddx_ddd[i];
 
-							if (los(centre.y, centre.x, yy, xx)) {
+							if (los(cave, centre.y, centre.x, yy, xx)) {
 								k++;
 								break;
 							}
@@ -2664,7 +2664,7 @@ bool project(int who, int rad, int y, int x, int dam, int typ, int flg,
 
 				/* If not an arc, accept all grids in LOS. */
 				if (!(flg & (PROJECT_ARC))) {
-					if (los(centre.y, centre.x, y, x)) {
+					if (los(cave, centre.y, centre.x, y, x)) {
 						blast_grid[num_grids].y = y;
 						blast_grid[num_grids].x = x;
 						distance_to_grid[num_grids] = dist_from_centre;
@@ -2694,7 +2694,7 @@ bool project(int who, int rad, int y, int x, int dam, int typ, int flg,
 					 * allowed, and the grid is in LOS, accept it.
 					 */
 					if (diff < (degrees_of_arc + 6) / 4) {
-						if (los(centre.y, centre.x, y, x)) {
+						if (los(cave, centre.y, centre.x, y, x)) {
 							blast_grid[num_grids].y = y;
 							blast_grid[num_grids].x = x;
 							distance_to_grid[num_grids] = dist_from_centre;

@@ -54,7 +54,6 @@
 u16b daycount = 0;
 u32b seed_randart;		/* Hack -- consistent random artifacts */
 u32b seed_flavor;		/* Hack -- consistent object colors */
-u32b seed_town;			/* Hack -- consistent town layout */
 s32b turn;				/* Current game turn */
 bool character_generated;	/* The character exists */
 bool character_dungeon;		/* The character has a dungeon */
@@ -312,7 +311,7 @@ static void recharged_notice(const object_type *o_ptr, bool all)
 	object_desc(o_name, sizeof(o_name), o_ptr, ODESC_BASE);
 
 	/* Disturb the player */
-	disturb(player, 0, 0);
+	disturb(player, 0);
 
 	/* Notify the player */
 	if (o_ptr->number > 1)
@@ -408,10 +407,10 @@ static void recharge_objects(void)
 	}
 
 	/*** Recharge the ground ***/
-	for (i = 1; i < o_max; i++)
+	for (i = 1; i < cave_object_max(cave); i++)
 	{
 		/* Get the object */
-		o_ptr = object_byid(i);
+		o_ptr = cave_object(cave, i);
 
 		/* Skip dead objects */
 		if (!o_ptr->kind) continue;
@@ -643,7 +642,7 @@ static void process_world(struct cave *c)
 		{
 			/* Message */
 			msg("You faint from the lack of food.");
-			disturb(player, 1, 0);
+			disturb(player, 1);
 
 			/* Faint (bypass free action) */
 			(void)player_inc_timed(player, TMD_PARALYZED, 1 + randint0(5), TRUE, FALSE);
@@ -755,7 +754,7 @@ static void process_world(struct cave *c)
 
 			/* The light is now out */
 			} else if (o_ptr->timeout == 0) {
-				disturb(player, 0, 0);
+				disturb(player, 0);
 				msg("Your light has gone out!");
 
 				/* If it's a torch, now is the time to delete it */
@@ -767,7 +766,7 @@ static void process_world(struct cave *c)
 
 			/* The light is getting dim */
 			else if ((o_ptr->timeout < 50) && (!(o_ptr->timeout % 20))) {
-				disturb(player, 0, 0);
+				disturb(player, 0);
 				msg("Your light is growing faint.");
 			}
 		}
@@ -804,7 +803,7 @@ static void process_world(struct cave *c)
 	{
 		wieldeds_notice_flag(player, OF_TELEPORT);
 		teleport_player(40);
-		disturb(player, 0, 0);
+		disturb(player, 0);
 	}
 
 	/* Delayed Word-of-Recall */
@@ -817,7 +816,7 @@ static void process_world(struct cave *c)
 		if (!player->word_recall)
 		{
 			/* Disturbing! */
-			disturb(player, 0, 0);
+			disturb(player, 0);
 
 			/* Determine the level */
 			if (player->depth)
@@ -859,7 +858,7 @@ static void process_world(struct cave *c)
 				target_depth++;
 			}
 
-			disturb(player, 0, 0);
+			disturb(player, 0);
 
 			/* Determine the level */
 			if (target_depth > player->depth) {
@@ -995,7 +994,7 @@ static void process_player(void)
 		if (e.type != EVT_NONE) {
 			/* Flush and disturb */
 			flush();
-			disturb(player, 0, 0);
+			disturb(player, 0);
 			msg("Cancelled.");
 		}
 	}
@@ -1286,7 +1285,7 @@ static void dungeon(struct cave *c)
 	health_track(player, NULL);
 
 	/* Disturb */
-	disturb(player, 1, 0);
+	disturb(player, 1);
 
 	/*
 	 * Because changing levels doesn't take a turn and PR_MONLIST might not be
@@ -1398,16 +1397,20 @@ static void dungeon(struct cave *c)
 	while (TRUE)
 	{
 		/* Hack -- Compact the monster list occasionally */
-		if (cave_monster_count(cave) + 32 > z_info->m_max) compact_monsters(64);
+		if (cave_monster_count(cave) + 32 > z_info->m_max) 
+			compact_monsters(64);
 
 		/* Hack -- Compress the monster list occasionally */
-		if (cave_monster_count(cave) + 32 < cave_monster_max(cave)) compact_monsters(0);
+		if (cave_monster_count(cave) + 32 < cave_monster_max(cave)) 
+			compact_monsters(0);
 
 		/* Hack -- Compact the object list occasionally */
-		if (o_cnt + 32 > z_info->o_max) compact_objects(64);
+		if (cave_object_count(cave) + 32 > z_info->o_max) 
+			compact_objects(64);
 
 		/* Hack -- Compress the object list occasionally */
-		if (o_cnt + 32 < o_max) compact_objects(0);
+		if (cave_object_count(cave) + 32 < cave_object_max(cave)) 
+			compact_objects(0);
 
 		/* Can the player move? */
 		while ((player->energy >= 100) && !player->leaving)
@@ -1669,9 +1672,6 @@ void play_game(void)
 		/* Seed for flavors */
 		seed_flavor = randint0(0x10000000);
 
-		/* Seed for town layout */
-		seed_town = randint0(0x10000000);
-
 		/* Roll up a new character. Quickstart is allowed if ht_birth is set */
 		player_birth(player->ht_birth ? TRUE : FALSE);
 	}
@@ -1729,7 +1729,7 @@ void play_game(void)
 
 	/* Generate a dungeon level if needed */
 	if (!character_dungeon)
-		cave_generate(cave, player);
+		cave_generate(cave , player);
 
 
 	/* Character is now "complete" */

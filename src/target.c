@@ -18,7 +18,7 @@
 
 #include "angband.h"
 #include "cave.h"
-#include "game-cmd.h"
+#include "cmd-core.h"
 #include "keymap.h"
 #include "mon-lore.h"
 #include "mon-util.h"
@@ -189,8 +189,8 @@ static void look_mon_desc(char *buf, size_t max, int m_idx)
 bool target_able(struct monster *m)
 {
 	return m && m->race && m->ml && !m->unaware &&
-			projectable(player->py, player->px, m->fy, m->fx, PROJECT_NONE) &&
-			!player->timed[TMD_IMAGE];
+		projectable(cave, player->py, player->px, m->fy, m->fx, PROJECT_NONE) &&
+		!player->timed[TMD_IMAGE];
 }
 
 
@@ -864,7 +864,7 @@ static ui_event target_set_interactive_aux(int y, int x, int mode)
 					object_type *o_ptr;
 
 					/* Get the object */
-					o_ptr = object_byid(this_o_idx);
+					o_ptr = cave_object(cave, this_o_idx);
 
 					/* Get the next object */
 					next_o_idx = o_ptr->next_o_idx;
@@ -1061,7 +1061,7 @@ static ui_event target_set_interactive_aux(int y, int x, int mode)
 			else
 			{
 				/* Get the single object in the list */
-				object_type *o_ptr = object_byid(floor_list[0]);
+				object_type *o_ptr = cave_object(cave, floor_list[0]);
 
 				/* Allow user to recall an object */
 				press = target_recall_loop_object(o_ptr, y, x, out_val, s1, s2, s3, coords);
@@ -1272,7 +1272,7 @@ static int draw_path(u16b path_n, u16b *path_g, wchar_t *c, int *a, int y1, int 
 				colour = TERM_L_RED;
 		}
 
-		else if (cave->o_idx[y][x] && object_byid(cave->o_idx[y][x])->marked)
+		else if (cave->o_idx[y][x] && square_object(cave, y, x)->marked)
 			/* Known objects are yellow. */
 			colour = TERM_YELLOW;
 
@@ -1484,7 +1484,7 @@ bool target_set_interactive(int mode, int x, int y)
 					if (press.mouse.mods & KC_MOD_ALT) {
 						/* go to spot - same as 'g' command below */
 						cmdq_push(CMD_PATHFIND);
-						cmd_set_arg_point(cmdq_peek(), 0, y, x);
+						cmd_set_arg_point(cmdq_peek(), "point", y, x);
 						done = TRUE;
 					} else
 					{
@@ -1587,7 +1587,7 @@ bool target_set_interactive(int mode, int x, int y)
 				case 'g':
 				{
 					cmdq_push(CMD_PATHFIND);
-					cmd_set_arg_point(cmdq_peek(), 0, y, x);
+					cmd_set_arg_point(cmdq_peek(), "point", y, x);
 					done = TRUE;
 					break;
 				}
@@ -1714,7 +1714,7 @@ bool target_set_interactive(int mode, int x, int y)
 					if (press.mouse.mods & KC_MOD_ALT) {
 						/* go to spot - same as 'g' command below */
 						cmdq_push(CMD_PATHFIND);
-						cmd_set_arg_point(cmdq_peek(), 0, y, x);
+						cmd_set_arg_point(cmdq_peek(), "point", y, x);
 						done = TRUE;
 					} else
 					{
@@ -1855,7 +1855,7 @@ bool target_set_interactive(int mode, int x, int y)
 				case 'g':
 				{
 					cmdq_push(CMD_PATHFIND);
-					cmd_set_arg_point(cmdq_peek(), 0, y, x);
+					cmd_set_arg_point(cmdq_peek(), "point", y, x);
 					done = TRUE;
 					break;
 				}

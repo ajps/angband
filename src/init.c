@@ -21,7 +21,7 @@
 #include "cave.h"
 #include "cmds.h"
 #include "game-event.h"
-#include "game-cmd.h"
+#include "cmd-core.h"
 #include "generate.h"
 #include "history.h"
 #include "hint.h"
@@ -3085,16 +3085,11 @@ static errr init_other(void)
 
 	/*** Prepare grid arrays ***/
 
-	cave = cave_new();
+	cave = cave_new(DUNGEON_HGT, DUNGEON_WID);
 
 	/* Array of stacked monster messages */
 	mon_msg = C_ZNEW(MAX_STORED_MON_MSG, monster_race_message);
 	mon_message_hist = C_ZNEW(MAX_STORED_MON_CODES, monster_message_history);
-
-	/*** Prepare entity arrays ***/
-
-	/* Objects */
-	objects_init();
 
 	/*** Prepare lore array ***/
 
@@ -3379,9 +3374,8 @@ void cleanup_angband(void)
 
 	FREE(player->inventory);
 
-	/* Free the lore, monster, and object lists */
+	/* Free the lore list */
 	FREE(l_list);
-	objects_destroy();
 
 	cave_free(cave);
 

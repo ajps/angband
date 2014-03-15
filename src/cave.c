@@ -20,7 +20,7 @@
 #include "cave.h"
 #include "cmds.h"
 #include "dungeon.h"
-#include "game-cmd.h"
+#include "cmd-core.h"
 #include "game-event.h"
 #include "grafmode.h"
 #include "init.h"
@@ -94,7 +94,7 @@ int distance(int y1, int x1, int y2, int x2)
  * determining which grids are illuminated by the player's torch, and which
  * grids and monsters can be "seen" by the player, etc).
  */
-bool los(int y1, int x1, int y2, int x2)
+bool los(struct cave *c, int y1, int x1, int y2, int x2)
 {
 	/* Delta */
 	int dx, dy;
@@ -139,7 +139,7 @@ bool los(int y1, int x1, int y2, int x2)
 		{
 			for (ty = y1 + 1; ty < y2; ty++)
 			{
-				if (!square_isprojectable(cave, ty, x1)) return (FALSE);
+				if (!square_isprojectable(c, ty, x1)) return (FALSE);
 			}
 		}
 
@@ -148,7 +148,7 @@ bool los(int y1, int x1, int y2, int x2)
 		{
 			for (ty = y1 - 1; ty > y2; ty--)
 			{
-				if (!square_isprojectable(cave, ty, x1)) return (FALSE);
+				if (!square_isprojectable(c, ty, x1)) return (FALSE);
 			}
 		}
 
@@ -164,7 +164,7 @@ bool los(int y1, int x1, int y2, int x2)
 		{
 			for (tx = x1 + 1; tx < x2; tx++)
 			{
-				if (!square_isprojectable(cave, y1, tx)) return (FALSE);
+				if (!square_isprojectable(c, y1, tx)) return (FALSE);
 			}
 		}
 
@@ -173,7 +173,7 @@ bool los(int y1, int x1, int y2, int x2)
 		{
 			for (tx = x1 - 1; tx > x2; tx--)
 			{
-				if (!square_isprojectable(cave, y1, tx)) return (FALSE);
+				if (!square_isprojectable(c, y1, tx)) return (FALSE);
 			}
 		}
 
@@ -191,7 +191,7 @@ bool los(int y1, int x1, int y2, int x2)
 	{
 		if (ay == 2)
 		{
-			if (square_isprojectable(cave, y1 + sy, x1)) return (TRUE);
+			if (square_isprojectable(c, y1 + sy, x1)) return (TRUE);
 		}
 	}
 
@@ -200,7 +200,7 @@ bool los(int y1, int x1, int y2, int x2)
 	{
 		if (ax == 2)
 		{
-			if (square_isprojectable(cave, y1, x1 + sx)) return (TRUE);
+			if (square_isprojectable(c, y1, x1 + sx)) return (TRUE);
 		}
 	}
 
@@ -235,7 +235,7 @@ bool los(int y1, int x1, int y2, int x2)
 		/* the LOS exactly meets the corner of a tile. */
 		while (x2 - tx)
 		{
-			if (!square_isprojectable(cave, ty, tx)) return (FALSE);
+			if (!square_isprojectable(c, ty, tx)) return (FALSE);
 
 			qy += m;
 
@@ -246,7 +246,7 @@ bool los(int y1, int x1, int y2, int x2)
 			else if (qy > f2)
 			{
 				ty += sy;
-				if (!square_isprojectable(cave, ty, tx)) return (FALSE);
+				if (!square_isprojectable(c, ty, tx)) return (FALSE);
 				qy -= f1;
 				tx += sx;
 			}
@@ -282,7 +282,7 @@ bool los(int y1, int x1, int y2, int x2)
 		/* the LOS exactly meets the corner of a tile. */
 		while (y2 - ty)
 		{
-			if (!square_isprojectable(cave, ty, tx)) return (FALSE);
+			if (!square_isprojectable(c, ty, tx)) return (FALSE);
 
 			qx += m;
 
@@ -293,7 +293,7 @@ bool los(int y1, int x1, int y2, int x2)
 			else if (qx > f2)
 			{
 				tx += sx;
-				if (!square_isprojectable(cave, ty, tx)) return (FALSE);
+				if (!square_isprojectable(c, ty, tx)) return (FALSE);
 				qx -= f1;
 				ty += sy;
 			}
@@ -802,8 +802,8 @@ void map_info(unsigned y, unsigned x, grid_data *g)
 {
 	object_type *o_ptr;
 
-	assert(x < DUNGEON_WID);
-	assert(y < DUNGEON_HGT);
+	assert(x < (unsigned) cave->width);
+	assert(y < (unsigned) cave->height);
 
 	/* Default "clear" values, others will be set later where appropriate. */
 	g->first_kind = NULL;
@@ -1157,7 +1157,7 @@ void square_note_spot(struct cave *c, int y, int x)
 		return;
 
 	/* Memorize this grid */
-	sqinfo_on(cave->info[y][x], SQUARE_MARK);
+	sqinfo_on(c->info[y][x], SQUARE_MARK);
 }
 
 
@@ -1702,7 +1702,7 @@ static void add_monster_lights(struct cave *c, struct loc from)
 		/* Check the k'th monster */
 		struct monster *m = cave_monster(c, k);
 
-		bool in_los = los(from.y, from.x, m->fy, m->fx);
+		bool in_los = los(c, from.y, from.x, m->fy, m->fx);
 
 		/* Skip dead monsters */
 		if (!m->race)
@@ -1721,7 +1721,7 @@ static void add_monster_lights(struct cave *c, struct loc from)
 				int sx = m->fx + j;
 				
 				/* If the monster isn't visible we can only light open tiles */
-				if (!in_los && !square_isprojectable(cave, sy, sx))
+				if (!in_los && !square_isprojectable(c, sy, sx))
 					continue;
 
 				/* If the tile is too far away we won't light it */
@@ -1729,7 +1729,7 @@ static void add_monster_lights(struct cave *c, struct loc from)
 					continue;
 				
 				/* If the tile itself isn't in LOS, don't light it */
-				if (!los(from.y, from.x, sy, sx))
+				if (!los(c, from.y, from.x, sy, sx))
 					continue;
 
 				/* Mark the square lit and seen */
@@ -1848,7 +1848,7 @@ static void update_view_one(struct cave *c, int y, int x, int radius, int py, in
 	}
 
 
-	if (los(py, px, yc, xc))
+	if (los(c, py, px, yc, xc))
 		become_viewable(c, y, x, lit, py, px);
 }
 
@@ -1876,7 +1876,7 @@ void update_view(struct cave *c, struct player *p)
 	/* View squares we have LOS to */
 	for (y = 0; y < c->height; y++)
 		for (x = 0; x < c->width; x++)
-			update_view_one(cave, y, x, radius, p->py, p->px);
+			update_view_one(c, y, x, radius, p->py, p->px);
 
 	/*** Step 3 -- Complete the algorithm ***/
 
@@ -1942,9 +1942,9 @@ void cave_forget_flow(struct cave *c)
 	if (!flow_save) return;
 
 	/* Check the entire dungeon */
-	for (y = 0; y < DUNGEON_HGT; y++)
+	for (y = 0; y < c->height; y++)
 	{
-		for (x = 0; x < DUNGEON_WID; x++)
+		for (x = 0; x < c->width; x++)
 		{
 			/* Forget the old data */
 			c->cost[y][x] = 0;
@@ -1997,9 +1997,9 @@ void cave_update_flow(struct cave *c)
 	if (flow_save++ == 255)
 	{
 		/* Cycle the flow */
-		for (y = 0; y < DUNGEON_HGT; y++)
+		for (y = 0; y < c->height; y++)
 		{
-			for (x = 0; x < DUNGEON_WID; x++)
+			for (x = 0; x < c->width; x++)
 			{
 				int w = c->when[y][x];
 				c->when[y][x] = (w >= 128) ? (w - 128) : 0;
@@ -2056,6 +2056,7 @@ void cave_update_flow(struct cave *c)
 			/* Child location */
 			y = ty + ddy_ddd[d];
 			x = tx + ddx_ddd[d];
+			if (!square_in_bounds(c, y, x)) continue;
 
 			/* Ignore "pre-stamped" entries */
 			if (c->when[y][x] == flow_n) continue;
@@ -2091,15 +2092,14 @@ void cave_update_flow(struct cave *c)
  * This function "illuminates" every grid in the dungeon, memorizes all
  * "objects", and memorizes all grids as with magic mapping.
  */
-void wiz_light(bool full)
+void wiz_light(struct cave *c, bool full)
 {
 	int i, y, x;
 
-
 	/* Memorize objects */
-	for (i = 1; i < o_max; i++)
+	for (i = 1; i < cave_object_max(cave); i++)
 	{
-		object_type *o_ptr = object_byid(i);
+		object_type *o_ptr = cave_object(c, i);
 
 		/* Skip dead objects */
 		if (!o_ptr->kind) continue;
@@ -2113,15 +2113,13 @@ void wiz_light(bool full)
 	}
 
 	/* Scan all normal grids */
-	for (y = 1; y < cave->height - 1; y++)
+	for (y = 1; y < c->height - 1; y++)
 	{
 		/* Scan all normal grids */
-		for (x = 1; x < cave->width - 1; x++)
+		for (x = 1; x < c->width - 1; x++)
 		{
-			feature_type *f_ptr = &f_info[cave->feat[y][x]];
-
 			/* Process all non-walls */
-			if (!tf_has(f_ptr->flags, TF_ROCK))
+			if (!square_seemslikewall(c, y, x))
 			{
 				/* Scan all neighbors */
 				for (i = 0; i < 9; i++)
@@ -2129,15 +2127,13 @@ void wiz_light(bool full)
 					int yy = y + ddy_ddd[i];
 					int xx = x + ddx_ddd[i];
 
-					f_ptr = &f_info[cave->feat[yy][xx]];		    
-
 					/* Perma-light the grid */
-					sqinfo_on(cave->info[yy][xx], SQUARE_GLOW);
+					sqinfo_on(c->info[yy][xx], SQUARE_GLOW);
 
 					/* Memorize normal features */
-					if (!tf_has(f_ptr->flags, TF_FLOOR) || 
-						square_visible_trap(cave, yy, xx))
-						sqinfo_on(cave->info[yy][xx], SQUARE_MARK);
+					if (!square_isfloor(c, yy, xx) || 
+						square_visible_trap(c, yy, xx))
+						sqinfo_on(c->info[yy][xx], SQUARE_MARK);
 				}
 			}
 		}
@@ -2172,9 +2168,9 @@ void wiz_dark(void)
 	}
 
 	/* Forget all objects */
-	for (i = 1; i < o_max; i++)
+	for (i = 1; i < cave_object_max(cave); i++)
 	{
-		object_type *o_ptr = object_byid(i);
+		object_type *o_ptr = cave_object(cave, i);
 
 		/* Skip dead objects */
 		if (!o_ptr->kind) continue;
@@ -2244,10 +2240,10 @@ void cave_illuminate(struct cave *c, bool daytime)
 struct feature *square_feat(struct cave *c, int y, int x)
 {
 	assert(c);
-	assert(y >= 0 && y < DUNGEON_HGT);
-	assert(x >= 0 && x < DUNGEON_WID);
+	assert(y >= 0 && y < c->height);
+	assert(x >= 0 && x < c->width);
 
-	return &f_info[cave->feat[y][x]];
+	return &f_info[c->feat[y][x]];
 }
 
 void square_set_feat(struct cave *c, int y, int x, int feat)
@@ -2255,10 +2251,8 @@ void square_set_feat(struct cave *c, int y, int x, int feat)
 	int current_feat = c->feat[y][x];
 
 	assert(c);
-	assert(y >= 0 && y < DUNGEON_HGT);
-	assert(x >= 0 && x < DUNGEON_WID);
-	/* XXX: Check against c->height and c->width instead, once everywhere
-	 * honors those... */
+	assert(y >= 0 && y < c->height);
+	assert(x >= 0 && x < c->width);
 
 	/* Track changes */
 	if (current_feat) c->feat_count[current_feat]--;
@@ -2567,7 +2561,7 @@ int project_path(u16b *gp, int range, int y1, int x1, int y2, int x2, int flg)
  * This function is used to determine if the player can (easily) target
  * a given grid, and if a monster can target the player.
  */
-bool projectable(int y1, int x1, int y2, int x2, int flg)
+bool projectable(struct cave *c, int y1, int x1, int y2, int x2, int flg)
 {
 	int y, x;
 
@@ -2585,7 +2579,7 @@ bool projectable(int y1, int x1, int y2, int x2, int flg)
 	x = GRID_X(grid_g[grid_n-1]);
 
 	/* May not end in a wall grid */
-	if (!square_ispassable(cave, y, x)) return (FALSE);
+	if (!square_ispassable(c, y, x)) return (FALSE);
 
 	/* May not end in an unrequested grid */
 	if ((y != y2) || (x != x2)) return (FALSE);
@@ -2607,7 +2601,7 @@ bool projectable(int y1, int x1, int y2, int x2, int flg)
  *
  * need_los determines whether line of sight is needed
  */
-void scatter(int *yp, int *xp, int y, int x, int d, bool need_los)
+void scatter(struct cave *c, int *yp, int *xp, int y, int x, int d, bool need_los)
 {
 	int nx, ny;
 
@@ -2620,7 +2614,7 @@ void scatter(int *yp, int *xp, int y, int x, int d, bool need_los)
 		nx = rand_spread(x, d);
 
 		/* Ignore annoying locations */
-		if (!square_in_bounds_fully(cave, ny, nx)) continue;
+		if (!square_in_bounds_fully(c, ny, nx)) continue;
 
 		/* Ignore "excessively distant" locations */
 		if ((d > 1) && (distance(y, x, ny, nx) > d)) continue;
@@ -2629,7 +2623,7 @@ void scatter(int *yp, int *xp, int y, int x, int d, bool need_los)
 		if (!need_los) break;
 
 		/* Require "line of sight" if set */
-		if (need_los && (los(y, x, ny, nx))) break;
+		if (need_los && (los(c, y, x, ny, nx))) break;
 	}
 
 	/* Save the location */
@@ -2638,88 +2632,49 @@ void scatter(int *yp, int *xp, int y, int x, int d, bool need_los)
 }
 
 
-/*
- * Something has happened to disturb the player.
- *
- * The first arg indicates a major disturbance, which affects search.
- *
- * The second arg is currently unused, but could induce output flush.
- *
- * All disturbance cancels repeated commands, resting, and running.
- */
-void disturb(struct player *p, int stop_search, int unused_flag)
-{
-	/* Unused parameter */
-	(void)unused_flag;
-
-	/* Cancel repeated commands */
-	cmd_cancel_repeat();
-
-	/* Cancel Resting */
-	if (player_is_resting(p)) {
-		player_resting_cancel(p);
-		p->redraw |= PR_STATE;
-	}
-
-	/* Cancel running */
-	if (p->running) {
-		p->running = 0;
-
-		/* Check for new panel if appropriate */
-		if (OPT(center_player)) verify_panel();
-		p->update |= PU_TORCH;
-	}
-
-	/* Cancel searching if requested */
-	if (stop_search && p->searching)
-	{
-		p->searching = FALSE;
-		p->update |= PU_BONUS;
-		p->redraw |= PR_STATE;
-	}
-
-	/* Flush input */
-	flush();
-}
-
 struct cave *cave = NULL;
 
-struct cave *cave_new(void) {
+struct cave *cave_new(int height, int width) {
 	int y, x;
 
 	struct cave *c = mem_zalloc(sizeof *c);
+	c->height = height;
+	c->width = width;
 	c->feat_count = mem_zalloc((z_info->f_max + 1) * sizeof(int));
-	c->info = mem_zalloc(DUNGEON_HGT * sizeof(bitflag**));
-	c->feat = mem_zalloc(DUNGEON_HGT * sizeof(byte*));
-	c->cost = mem_zalloc(DUNGEON_HGT * sizeof(byte*));
-	c->when = mem_zalloc(DUNGEON_HGT * sizeof(byte*));
-	c->m_idx = mem_zalloc(DUNGEON_HGT * sizeof(s16b*));
-	c->o_idx = mem_zalloc(DUNGEON_HGT * sizeof(s16b*));
-	for (y = 0; y < DUNGEON_HGT; y++){
-		c->info[y] = mem_zalloc(DUNGEON_WID * sizeof(bitflag*));
-		for (x = 0; x < DUNGEON_WID; x++)
+	c->info = mem_zalloc(c->height * sizeof(bitflag**));
+	c->feat = mem_zalloc(c->height * sizeof(byte*));
+	c->cost = mem_zalloc(c->height * sizeof(byte*));
+	c->when = mem_zalloc(c->height * sizeof(byte*));
+	c->m_idx = mem_zalloc(c->height * sizeof(s16b*));
+	c->o_idx = mem_zalloc(c->height * sizeof(s16b*));
+	for (y = 0; y < c->height; y++){
+		c->info[y] = mem_zalloc(c->width * sizeof(bitflag*));
+		for (x = 0; x < c->width; x++)
 			c->info[y][x] = mem_zalloc(SQUARE_SIZE * sizeof(bitflag));
-		c->feat[y] = mem_zalloc(DUNGEON_WID * sizeof(byte));
-		c->cost[y] = mem_zalloc(DUNGEON_WID * sizeof(byte));
-		c->when[y] = mem_zalloc(DUNGEON_WID * sizeof(byte));
-		c->m_idx[y] = mem_zalloc(DUNGEON_WID * sizeof(s16b));
-		c->o_idx[y] = mem_zalloc(DUNGEON_WID * sizeof(s16b));
+		c->feat[y] = mem_zalloc(c->width * sizeof(byte));
+		c->cost[y] = mem_zalloc(c->width * sizeof(byte));
+		c->when[y] = mem_zalloc(c->width * sizeof(byte));
+		c->m_idx[y] = mem_zalloc(c->width * sizeof(s16b));
+		c->o_idx[y] = mem_zalloc(c->width * sizeof(s16b));
 	}
 
 	c->monsters = mem_zalloc(z_info->m_max * sizeof(struct monster));
 	c->mon_max = 1;
 
+	c->objects = mem_zalloc(z_info->o_max * sizeof(struct object));
+	c->obj_max = 1;
+
 	c->traps = mem_zalloc(z_info->l_max * sizeof(struct trap_type));
 	c->trap_max = 1;
 
-	c->created_at = 1;
+	c->created_at = turn;
 	return c;
 }
 
 void cave_free(struct cave *c) {
 	int y, x;
-	for (y = 0; y < DUNGEON_HGT; y++){
-		for (x = 0; x < DUNGEON_WID; x++)
+	for (y = 0; y < c->height; y++){
+		for (x = 0; x < c->width; x++)
 			mem_free(c->info[y][x]);
 		mem_free(c->info[y]);
 		mem_free(c->feat[y]);
@@ -2736,6 +2691,7 @@ void cave_free(struct cave *c) {
 	mem_free(c->m_idx);
 	mem_free(c->o_idx);
 	mem_free(c->monsters);
+	mem_free(c->objects);
 	mem_free(c->traps);
 	mem_free(c);
 }
@@ -2901,7 +2857,7 @@ bool square_isknowntrap(struct cave *c, int y, int x) {
  * True if the square contains a trap, known or unknown.
  */
 bool square_istrap(struct cave *c, int y, int x) {
-	return square_issecrettrap(cave, y, x) || square_isknowntrap(cave, y, x);
+	return square_issecrettrap(c, y, x) || square_isknowntrap(c, y, x);
 }
 
 /**
@@ -3157,6 +3113,41 @@ int cave_monster_count(struct cave *c) {
 }
 
 /**
+ * Get an object on the current level by its index.
+ */
+struct object *cave_object(struct cave *c, int idx) {
+	assert(idx >= 0);
+	assert(idx <= z_info->o_max);
+	return &c->objects[idx];
+}
+
+/**
+ * Get the top object of a pile on the current level by its position.
+ */
+struct object *square_object(struct cave *c, int y, int x) {
+	if (c->o_idx[y][x] > 0) {
+	struct object *obj = cave_object(c, c->o_idx[y][x]);
+	return obj->kind ? obj : NULL;
+	}
+
+	return NULL;
+}
+
+/**
+ * The maximum number of objects allowed in the level.
+ */
+int cave_object_max(struct cave *c) {
+	return c->obj_max;
+}
+
+/**
+ * The current number of objects present on the level.
+ */
+int cave_object_count(struct cave *c) {
+	return c->obj_cnt;
+}
+
+/**
  * Get a trap on the current level by its index.
  */
 struct trap_type *cave_trap(struct cave *c, int idx) {
@@ -3193,7 +3184,7 @@ void square_smash_door(struct cave *c, int y, int x) {
 }
 
 void square_destroy_trap(struct cave *c, int y, int x) {
-	square_remove_trap(cave, y, x, FALSE, -1);
+	square_remove_trap(c, y, x, FALSE, -1);
 }
 
 void square_lock_door(struct cave *c, int y, int x, int power) {
@@ -3280,7 +3271,7 @@ void square_destroy(struct cave *c, int y, int x) {
 	else if (r < 100)
 		feat = FEAT_MAGMA;
 
-	square_set_feat(cave, y, x, feat);
+	square_set_feat(c, y, x, feat);
 }
 
 void square_earthquake(struct cave *c, int y, int x) {
@@ -3348,7 +3339,7 @@ void square_force_floor(struct cave *c, int y, int x) {
 /*
  * Return the number of doors/traps around (or under) the character.
  */
-int count_feats(int *y, int *x, bool (*test)(struct cave *cave, int y, int x), bool under)
+int count_feats(int *y, int *x, bool (*test)(struct cave *c, int y, int x), bool under)
 {
 	int d;
 	int xx, yy;

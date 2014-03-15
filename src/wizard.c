@@ -1253,6 +1253,7 @@ static void do_cmd_wiz_jump(void)
 
 	char ppp[80];
 	char tmp_val[160];
+	char answer;
 
 	/* Prompt */
 	strnfmt(ppp, sizeof(ppp), "Jump to level (0-%d): ", MAX_DEPTH-1);
@@ -1271,6 +1272,14 @@ static void do_cmd_wiz_jump(void)
 
 	/* Paranoia */
 	if (depth > MAX_DEPTH - 1) depth = MAX_DEPTH - 1;
+
+	/* Prompt */
+	strnfmt(ppp, sizeof(ppp), "Choose cave_profile?");
+
+	/* Get to choose generation algorithm */
+	answer = get_char(ppp, "yn", 2, 'n');
+	if ((answer == 'y') || (answer == 'Y'))
+		player->noscore |= NOSCORE_JUMPING;
 
 	/* Accept request */
 	msg("You jump to dungeon level %d.", depth);
@@ -1400,7 +1409,7 @@ static void do_cmd_wiz_named(monster_race *r, bool slp)
 		int d = 1;
 
 		/* Pick a location */
-		scatter(&y, &x, py, px, d, TRUE);
+		scatter(cave, &y, &x, py, px, d, TRUE);
 
 		/* Require empty grids */
 		if (!square_isempty(cave, y, x)) continue;
@@ -2144,7 +2153,7 @@ void do_cmd_debug(void)
 		/* Wizard Light the Level */
 		case 'w':
 		{
-			wiz_light(TRUE);
+			wiz_light(cave, TRUE);
 			break;
 		}
 

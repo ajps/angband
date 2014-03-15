@@ -18,7 +18,7 @@
 
 #include "angband.h"
 #include "cmds.h"
-#include "game-cmd.h"
+#include "cmd-core.h"
 #include "keymap.h"
 #include "obj-desc.h"
 #include "obj-identify.h"
@@ -195,10 +195,14 @@ static void show_obj_list(int num_obj, int num_head, char labels[50][80],
 		
 		if (mode & OLIST_PRICE)
 		{
-			int price = price_item(o_ptr, TRUE, o_ptr->number);
-			strnfmt(tmp_val, sizeof(tmp_val), "%6d au", price);
-			put_str(tmp_val, row + i, col + ex_offset_ctr);
-			ex_offset_ctr += 9;
+			struct store *store = store_at(cave, player->py, player->px);
+			if (store) {
+				int price = price_item(store, o_ptr, TRUE, o_ptr->number);
+
+				strnfmt(tmp_val, sizeof(tmp_val), "%6d au", price);
+				put_str(tmp_val, row + i, col + ex_offset_ctr);
+				ex_offset_ctr += 9;
+			}
 		}
 
 		if (mode & OLIST_FAIL && obj_can_fail(o_ptr))
@@ -436,7 +440,7 @@ void show_floor(const int *floor_list, int floor_num, int mode, item_tester test
 	/* Build the object list */
 	for (i = 0; i < floor_num; i++)
 	{
-		o_ptr = object_byid(floor_list[i]);
+		o_ptr = cave_object(cave, floor_list[i]);
 
 		/* Tester always skips gold. When gold should be displayed,
 		 * only test items that are not gold.
@@ -480,7 +484,7 @@ bool verify_item(const char *prompt, int item)
 	/* Floor */
 	else
 	{
-		o_ptr = object_byid(0 - item);
+		o_ptr = cave_object(cave, 0 - item);
 	}
 
 	/* Describe */
@@ -510,7 +514,7 @@ bool get_item_allow(int item, unsigned char ch, cmd_code cmd, bool is_harmless)
 	if (item >= 0)
 		o_ptr = &player->inventory[item];
 	else
-		o_ptr = object_byid(0 - item);
+		o_ptr = cave_object(cave, 0 - item);
 
 	/* Hack - Only shift the command key if it actually needs to be shifted. */
 	if (ch < 0x20)

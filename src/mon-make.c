@@ -172,7 +172,7 @@ void delete_monster_idx(int m_idx)
 		object_type *o_ptr;
 
 		/* Get the object */
-		o_ptr = object_byid(this_o_idx);
+		o_ptr = cave_object(cave, this_o_idx);
 
 		/* Get the next object */
 		next_o_idx = o_ptr->next_o_idx;
@@ -249,7 +249,7 @@ static void compact_monsters_aux(int i1, int i2)
 		object_type *o_ptr;
 
 		/* Get the object */
-		o_ptr = object_byid(this_o_idx);
+		o_ptr = cave_object(cave, this_o_idx);
 
 		/* Get the next object */
 		next_o_idx = o_ptr->next_o_idx;
@@ -263,7 +263,7 @@ static void compact_monsters_aux(int i1, int i2)
 		object_type *o_ptr;
 
 		/* Get the object */
-		o_ptr = object_byid(m_ptr->mimicked_o_idx);
+		o_ptr = cave_object(cave, m_ptr->mimicked_o_idx);
 
 		/* Reset monster pointer */
 		o_ptr->mimicking_m_idx = i2;
@@ -383,9 +383,9 @@ void wipe_mon_list(struct cave *c, struct player *p)
 	int m_idx;
 
 	/* Delete all the monsters */
-	for (m_idx = cave_monster_max(cave) - 1; m_idx >= 1; m_idx--)
+	for (m_idx = cave_monster_max(c) - 1; m_idx >= 1; m_idx--)
 	{
-		monster_type *m_ptr = cave_monster(cave, m_idx);
+		monster_type *m_ptr = cave_monster(c, m_idx);
 
 		/* Skip dead monsters */
 		if (!m_ptr->race) continue;
@@ -401,10 +401,10 @@ void wipe_mon_list(struct cave *c, struct player *p)
 	}
 
 	/* Reset "cave->mon_max" */
-	cave->mon_max = 1;
+	c->mon_max = 1;
 
 	/* Reset "mon_cnt" */
-	cave->mon_cnt = 0;
+	c->mon_cnt = 0;
 
 	/* Hack -- reset "reproducer" count */
 	num_repro = 0;
@@ -422,33 +422,33 @@ void wipe_mon_list(struct cave *c, struct player *p)
  * This routine should almost never fail, but it *can* happen.
  * The calling code must check for and handle a 0 return.
  */
-static s16b mon_pop(void)
+s16b mon_pop(struct cave *c)
 {
 	int m_idx;
 
 	/* Normal allocation */
-	if (cave_monster_max(cave) < z_info->m_max) {
+	if (cave_monster_max(c) < z_info->m_max) {
 		/* Get the next hole */
-		m_idx = cave_monster_max(cave);
+		m_idx = cave_monster_max(c);
 
 		/* Expand the array */
-		cave->mon_max++;
+		c->mon_max++;
 
 		/* Count monsters */
-		cave->mon_cnt++;
+		c->mon_cnt++;
 
 		return m_idx;
 	}
 
 	/* Recycle dead monsters if we've run out of room */
-	for (m_idx = 1; m_idx < cave_monster_max(cave); m_idx++) {
-		monster_type *m_ptr = cave_monster(cave, m_idx);
+	for (m_idx = 1; m_idx < cave_monster_max(c); m_idx++) {
+		monster_type *m_ptr = cave_monster(c, m_idx);
 
 		/* Skip live monsters */
 		if (m_ptr->race) continue;
 
 		/* Count monsters */
-		cave->mon_cnt++;
+		c->mon_cnt++;
 
 		/* Use this monster */
 		return m_idx;
@@ -683,7 +683,7 @@ int mon_create_drop_count(const struct monster_race *race, bool maximize)
  *
  * Returns TRUE if anything is created, FALSE if nothing is.
  */
-static bool mon_create_drop(struct monster *m_ptr, byte origin)
+static bool mon_create_drop(struct cave *c, struct monster *m_ptr, byte origin)
 {
 	struct monster_drop *drop;
 
@@ -739,7 +739,7 @@ static bool mon_create_drop(struct monster *m_ptr, byte origin)
 		i_ptr->origin_depth = player->depth;
 		i_ptr->origin_xtra = m_ptr->race->ridx;
 		i_ptr->number = randint0(drop->max - drop->min) + drop->min;
-		if (monster_carry(m_ptr, i_ptr))
+		if (monster_carry(c, m_ptr, i_ptr))
 			any = TRUE;
 	}
 
@@ -751,14 +751,14 @@ static bool mon_create_drop(struct monster *m_ptr, byte origin)
 		if (gold_ok && (!item_ok || (randint0(100) < 50))) {
 			make_gold(i_ptr, level, SV_GOLD_ANY);
 		} else {
-			if (!make_object(cave, i_ptr, level, good,
+			if (!make_object(c, i_ptr, level, good,
                 great, extra_roll, NULL, 0)) continue;
 		}
 
 		i_ptr->origin = origin;
 		i_ptr->origin_depth = player->depth;
 		i_ptr->origin_xtra = m_ptr->race->ridx;
-		if (monster_carry(m_ptr, i_ptr))
+		if (monster_carry(c, m_ptr, i_ptr))
 			any = TRUE;
 	}
 
@@ -781,30 +781,30 @@ static bool mon_create_drop(struct monster *m_ptr, byte origin)
  *
  * Returns the m_idx of the newly copied monster, or 0 if the placement fails.
  */
-s16b place_monster(int y, int x, monster_type *mon, byte origin)
+s16b place_monster(struct cave *c, int y, int x, monster_type *mon, byte origin)
 {
 	s16b m_idx;
 	monster_type *m_ptr;
 
-	assert(square_in_bounds(cave, y, x));
-	assert(!square_monster(cave, y, x));
+	assert(square_in_bounds(c, y, x));
+	assert(!square_monster(c, y, x));
 
 	/* Get a new record */
-	m_idx = mon_pop();
+	m_idx = mon_pop(c);
 	if (!m_idx) return 0;
 
 	/* Copy the monster */
-	m_ptr = cave_monster(cave, m_idx);
+	m_ptr = cave_monster(c, m_idx);
 	COPY(m_ptr, mon, monster_type);
 
 	/* Set the ID */
 	m_ptr->midx = m_idx;
 
 	/* Set the location */
-	cave->m_idx[y][x] = m_ptr->midx;
+	c->m_idx[y][x] = m_ptr->midx;
 	m_ptr->fy = y;
 	m_ptr->fx = x;
-	assert(square_monster(cave, y, x) == m_ptr);
+	assert(square_monster(c, y, x) == m_ptr);
 
 	update_mon(m_ptr, TRUE);
 
@@ -816,7 +816,7 @@ s16b place_monster(int y, int x, monster_type *mon, byte origin)
 
 	/* Create the monster's drop, if any */
 	if (origin)
-		(void)mon_create_drop(m_ptr, origin);
+		(void)mon_create_drop(c, m_ptr, origin);
 
 	/* Make mimics start mimicking */
 	if (origin && m_ptr->race->mimic_kinds) {
@@ -904,27 +904,26 @@ int mon_hp(const struct monster_race *race, aspect hp_aspect)
  * except for the savefile loading code, which calls place_monster()
  * directly.
  */
-static bool place_new_monster_one(int y, int x, monster_race *race, 
-		bool sleep, byte origin)
+static bool place_new_monster_one(struct cave *c, int y, int x, monster_race *race, bool sleep, byte origin)
 {
 	int i;
 
 	struct monster *mon;
 	struct monster monster_body;
 
-	assert(square_in_bounds(cave, y, x));
+	assert(square_in_bounds(c, y, x));
 	assert(race && race->name);
 
 	/* Not where monsters already are */
-	if (square_monster(cave, y, x))
+	if (square_monster(c, y, x))
 		return FALSE;
 
 	/* Prevent monsters from being placed where they cannot walk, but allow other feature types */
-	if (!square_is_monster_walkable(cave, y, x))
+	if (!square_is_monster_walkable(c, y, x))
 		return FALSE;
 
 	/* No creation on glyph of warding */
-	if (square_iswarded(cave, y, x)) return FALSE;
+	if (square_iswarded(c, y, x)) return FALSE;
 
 	/* "unique" monsters must be "unique" */
 	if (rf_has(race->flags, RF_UNIQUE) && race->cur_num >= race->max_num)
@@ -935,7 +934,7 @@ static bool place_new_monster_one(int y, int x, monster_race *race,
 		return (FALSE);
 
 	/* Add to level feeling */
-	cave->mon_rating += race->power / 20;
+	c->mon_rating += race->power / 20;
 
 	/* Check out-of-depth-ness */
 	if (race->level > player->depth) {
@@ -947,7 +946,7 @@ static bool place_new_monster_one(int y, int x, monster_race *race,
 				msg("Deep monster (%s).", race->name);
 		}
 		/* Boost rating by power per 10 levels OOD */
-		cave->mon_rating += (race->level - player->depth) * race->power / 200;
+		c->mon_rating += (race->level - player->depth) * race->power / 200;
 	}
 	/* Note uniques for cheaters */
 	else if (rf_has(race->flags, RF_UNIQUE) && OPT(cheat_hear))
@@ -1011,7 +1010,7 @@ static bool place_new_monster_one(int y, int x, monster_race *race,
 		mon->attr = randint1(BASIC_COLORS - 1);
 
 	/* Place the monster in the dungeon */
-	if (!place_monster(y, x, mon, origin))
+	if (!place_monster(c, y, x, mon, origin))
 		return (FALSE);
 
 	/* Success */
@@ -1065,10 +1064,10 @@ static bool place_new_monster_group(struct cave *c, int y, int x,
 			int my = hy + ddy_ddd[i];
 
 			/* Walls and Monsters block flow */
-			if (!square_isempty(cave, my, mx)) continue;
+			if (!square_isempty(c, my, mx)) continue;
 
 			/* Attempt to place another monster */
-			if (place_new_monster_one(my, mx, r_ptr, sleep, origin)) {
+			if (place_new_monster_one(c, my, mx, r_ptr, sleep, origin)) {
 				/* Add it to the "hack" set */
 				hack_y[hack_n] = my;
 				hack_x[hack_n] = mx;
@@ -1155,12 +1154,12 @@ static bool place_monster_base_okay(monster_race *race)
 	
 	/* Find a nearby place to put the other groups */
 	for (j = 0; j < 50; j++){
-		scatter(&ny, &nx, y, x, GROUP_DISTANCE, FALSE);
-		if (square_isopen(cave, ny, nx)) break;
+		scatter(c, &ny, &nx, y, x, GROUP_DISTANCE, FALSE);
+		if (square_isopen(c, ny, nx)) break;
 	}
 		
 	/* Place the monsters */
-	success = place_new_monster_one(ny, nx, friends_race, sleep, origin);
+	success = place_new_monster_one(c, ny, nx, friends_race, sleep, origin);
 	if (total > 1){
 		success = place_new_monster_group(c, ny, nx, friends_race, sleep, total, origin);
 	}
@@ -1193,7 +1192,7 @@ bool place_new_monster(struct cave *c, int y, int x, monster_race *race, bool sl
 	assert(race);
 	
 	/* Place one monster, or fail */
-	if (!place_new_monster_one(y, x, race, sleep, origin)) return (FALSE);
+	if (!place_new_monster_one(c, y, x, race, sleep, origin)) return (FALSE);
 
 	/* We're done unless the group flag is set */
 	if (!group_okay) return (TRUE);
@@ -1364,7 +1363,7 @@ void monster_death(struct monster *m_ptr, bool stats)
 		object_type *o_ptr;
 
 		/* Get the object */
-		o_ptr = object_byid(this_o_idx);
+		o_ptr = cave_object(cave, this_o_idx);
 
 		/* Line up the next object */
 		next_o_idx = o_ptr->next_o_idx;
@@ -1577,8 +1576,8 @@ bool mon_take_hit(struct monster *m_ptr, int dam, bool *fear, const char *note)
 	}
 
 	/* Sometimes a monster gets scared by damage */
-	if (!m_ptr->m_timed[MON_TMD_FEAR] && !rf_has(m_ptr->race->flags, RF_NO_FEAR) &&
-		dam > 0) {
+	if (!m_ptr->m_timed[MON_TMD_FEAR] && 
+		!rf_has(m_ptr->race->flags, RF_NO_FEAR) &&	dam > 0) {
 		int percentage;
 
 		/* Percentage of fully healthy */
@@ -1591,8 +1590,8 @@ bool mon_take_hit(struct monster *m_ptr, int dam, bool *fear, const char *note)
 		if ((randint1(10) >= percentage) ||
 		    ((dam >= m_ptr->hp) && (randint0(100) < 80)))
 		{
-			int timer = randint1(10) + (((dam >= m_ptr->hp) && (percentage > 7)) ?
-	                   20 : ((11 - percentage) * 5));
+			int timer = randint1(10) + (((dam >= m_ptr->hp) && (percentage > 7))
+										? 20 : ((11 - percentage) * 5));
 
 			/* Hack -- note fear */
 			(*fear) = TRUE;

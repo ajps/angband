@@ -320,7 +320,7 @@ void py_attack(int y, int x) {
 	monster_type *m_ptr = square_monster(cave, y, x);
 	
 	/* disturb the player */
-	disturb(player, 0,0);
+	disturb(player, 0);
 
 	/* Initialize the energy used */
 	player->energy_use = 0;
@@ -648,8 +648,7 @@ static struct attack_result make_ranged_throw(object_type *o_ptr, int y, int x) 
  * Fire an object from the quiver, pack or floor at a target.
  */
 void do_cmd_fire(struct command *cmd) {
-	int item;
-	int dir = cmd_get_arg_direction(cmd, 1);
+	int item, dir;
 	int range = MIN(6 + 2 * player->state.ammo_mult, MAX_RANGE);
 	int shots = player->state.num_shots;
 
@@ -658,10 +657,21 @@ void do_cmd_fire(struct command *cmd) {
 	object_type *j_ptr = &player->inventory[INVEN_BOW];
 	object_type *o_ptr;
 
-	if (!cmd_get_arg_item(cmd, 0, &item))
+	/* Get arguments */
+	if (cmd_get_item(cmd, "item", &item,
+			/* Prompt */ "Fire which ammunition?",
+			/* Error  */ "You have no ammunition to fire.",
+			/* Filter */ obj_can_fire,
+			/* Choice */ USE_INVEN | USE_EQUIP | USE_FLOOR | QUIVER_TAGS) == CMD_OK) {
+		o_ptr = object_from_item_idx(item);
+	} else {
 		return;
+	}
 
-	o_ptr = object_from_item_idx(item);
+	if (cmd_get_target(cmd, "target", &dir) == CMD_OK)
+		player_confuse_dir(player, &dir, FALSE);
+	else
+		return;
 
 	/* Require a usable launcher */
 	if (!j_ptr->tval || !player->state.ammo_tval) {
@@ -689,8 +699,7 @@ void do_cmd_fire(struct command *cmd) {
  * Throw an object from the quiver, pack or floor.
  */
 void do_cmd_throw(struct command *cmd) {
-	int item;
-	int dir = cmd_get_arg_direction(cmd, 1);
+	int item, dir;
 	int shots = 1;
 	int str = adj_str_blow[player->state.stat_ind[A_STR]];
 	ranged_attack attack = make_ranged_throw;
@@ -699,10 +708,23 @@ void do_cmd_throw(struct command *cmd) {
 	int range;
 	object_type *o_ptr;
 
-	if (!cmd_get_arg_item(cmd, 0, &item))
+	/* Get arguments */
+	if (cmd_get_item(cmd, "item", &item,
+			/* Prompt */ "Throw which item?",
+			/* Error  */ "You have nothing to throw.",
+			/* Filter */ NULL,
+			/* Choice */ USE_EQUIP | USE_INVEN | USE_FLOOR) == CMD_OK) {
+		o_ptr = object_from_item_idx(item);
+	} else {
+		return;
+	}
+
+	if (cmd_get_target(cmd, "target", &dir) == CMD_OK)
+		player_confuse_dir(player, &dir, FALSE);
+	else
 		return;
 
-	o_ptr = object_from_item_idx(item);
+
 	weight = MAX(o_ptr->weight, 10);
 	range = MIN(((str + 20) * 10) / weight, 10);
 
@@ -712,48 +734,14 @@ void do_cmd_throw(struct command *cmd) {
 		return;
 	}
 
-	/* Check the item being thrown is usable by the player. */
-	if (!item_is_available(item, NULL, (USE_EQUIP | USE_INVEN | USE_FLOOR))) {
-		msg("That item is not within your reach.");
-		return;
-	}
-
 	ranged_helper(item, dir, range, shots, attack);
 }
-
-
-/**
- * Front-end 'throw' command.
- */
-void textui_cmd_throw(void) {
-	int item, dir;
-	const char *q, *s;
-
-	/* Get an item */
-	q = "Throw which item? ";
-	s = "You have nothing to throw.";
-	if (!get_item(&item, q, s, CMD_THROW, NULL, (USE_EQUIP | USE_INVEN | USE_FLOOR))) return;
-
-	if (item >= INVEN_WIELD && item < QUIVER_START) {
-		msg("You cannot throw wielded items.");
-		return;
-	}
-
-	/* Get a direction (or cancel) */
-	if (!get_aim_dir(&dir)) return;
-
-	cmdq_push(CMD_THROW);
-	cmd_set_arg_item(cmdq_peek(), 0, item);
-	cmd_set_arg_target(cmdq_peek(), 1, dir);
-}
-
 
 /**
  * Front-end command which fires at the nearest target with default ammo.
  */
-void textui_cmd_fire_at_nearest(void) {
-	/* the direction '5' means 'use the target' */
-	int i, dir = 5, item = -1;
+void do_cmd_fire_at_nearest(void) {
+	int i, dir = DIR_TARGET, item = -1;
 
 	/* Require a usable launcher */
 	if (!player->inventory[INVEN_BOW].tval || !player->state.ammo_tval) {
@@ -779,6 +767,6 @@ void textui_cmd_fire_at_nearest(void) {
 
 	/* Fire! */
 	cmdq_push(CMD_FIRE);
-	cmd_set_arg_item(cmdq_peek(), 0, item);
-	cmd_set_arg_target(cmdq_peek(), 1, dir);
+	cmd_set_arg_item(cmdq_peek(), "item", item);
+	cmd_set_arg_target(cmdq_peek(), "target", dir);
 }

@@ -19,11 +19,12 @@
 
 #include "cave.h"
 #include "cmds.h"
+#include "cmd-core.h"
 #include "obj-tvalsval.h"
 #include "obj-ui.h"
 #include "obj-util.h"
 #include "object.h"
-#include "game-cmd.h"
+#include "cmd-core.h"
 #include "spells.h"
 
 #include "ui.h"
@@ -247,29 +248,6 @@ static void spell_menu_browse(menu_type *m, const char *noun)
 	screen_load();
 }
 
-
-/**
- * Interactively select a spell.
- *
- * Returns the spell selected, or -1.
- */
-int get_spell(const object_type *o_ptr, const char *verb,
-		bool (*spell_test)(int spell))
-{
-	menu_type *m;
-	const char *noun = (player->class->spell_book == TV_MAGIC_BOOK ?
-			"spell" : "prayer");
-
-	m = spell_menu_new(o_ptr, spell_test);
-	if (m) {
-		int spell = spell_menu_select(m, noun, verb);
-		spell_menu_destroy(m);
-		return spell;
-	}
-
-	return -1;
-}
-
 /**
  * Browse a given book.
  */
@@ -307,81 +285,48 @@ void textui_spell_browse(void)
 	textui_book_browse(object_from_item_idx(item));
 }
 
+
 /**
- * Study a book to gain a new spell
+ * Get a spell from specified book.
  */
-void textui_obj_study(void)
+int get_spell_from_book(const char *verb, int book,
+		const char *error, bool (*spell_filter)(int spell))
 {
-	int item;
+	const char *noun =
+			(player->class->spell_book == TV_MAGIC_BOOK ? "spell" : "prayer");
 
-	if (!get_item(&item, "Study which book? ",
-			"You cannot learn any new spells from the books you have.",
-			CMD_STUDY_BOOK, obj_can_study, (USE_INVEN | USE_FLOOR)))
-		return;
+	menu_type *m;
+	struct object *o_ptr = object_from_item_idx(book);
 
-	track_object(item);
+	track_object(book);
 	handle_stuff(player);
 
-	if (player_has(PF_CHOOSE_SPELLS)) {
-		int spell = get_spell(object_from_item_idx(item),
-				"study", spell_okay_to_study);
-		if (spell >= 0) {
-			cmdq_push(CMD_STUDY_SPELL);
-			cmd_set_arg_choice(cmdq_peek(), 0, spell);
-		}
-	} else {
-		cmdq_push(CMD_STUDY_BOOK);
-		cmd_set_arg_item(cmdq_peek(), 0, item);
+	m = spell_menu_new(o_ptr, spell_filter);
+	if (m) {
+		int spell = spell_menu_select(m, noun, verb);
+		spell_menu_destroy(m);
+		return spell;
 	}
+
+	return -1;
 }
 
 /**
- * Cast a spell from a book.
+ * Get a spell from the player.
  */
-void textui_obj_cast(void)
+int get_spell(const char *verb, item_tester book_filter,
+		cmd_code cmd, const char *error, bool (*spell_filter)(int spell))
 {
-	int item;
-	int spell;
+	char prompt[1024];
+	int book;
 
-	const char *verb = ((player->class->spell_book == TV_MAGIC_BOOK) ? "cast" : "recite");
+	/* Create prompt */
+	strnfmt(prompt, sizeof prompt, "%s which book?", verb);
+	my_strcap(prompt);
 
-	if (!get_item(&item, "Cast from which book? ",
-			"You have no books that you can read.",
-			CMD_CAST, obj_can_cast_from, (USE_INVEN | USE_FLOOR)))
-		return;
-
-	/* Track the object kind */
-	track_object(item);
-
-	/* Ask for a spell */
-	spell = get_spell(object_from_item_idx(item), verb, spell_okay_to_cast);
-	if (spell >= 0) {
-		cmdq_push(CMD_CAST);
-		cmd_set_arg_choice(cmdq_peek(), 0, spell);
-	}
-}
-/* same as above but returns the spell used. two functions to avoid some
- * compiler warnings initializing commands in cmd0.c */
-int textui_obj_cast_ret(void)
-{
-	int item;
-	int spell;
-
-	const char *verb = ((player->class->spell_book == TV_MAGIC_BOOK) ? "cast" : "recite");
-
-	if (!get_item(&item, "Cast from which book? ",
-			"You have no books that you can read.",
-			CMD_CAST, obj_can_cast_from, (USE_INVEN | USE_FLOOR)))
+	if (!get_item(&book, prompt, error,
+			cmd, book_filter, (USE_INVEN | USE_FLOOR)))
 		return -1;
 
-	/* Track the object kind */
-	track_object(item);
-
-	/* Ask for a spell */
-	spell = get_spell(object_from_item_idx(item), verb, spell_okay_to_cast);
-	if (spell >= 0) {
-		cmdq_push(CMD_CAST);
-		cmd_set_arg_choice(cmdq_peek(), 0, spell);
-	}
-  return spell;
+	return get_spell_from_book(verb, book, error, spell_filter);
 }

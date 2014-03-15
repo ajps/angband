@@ -40,9 +40,9 @@ HEADERS = \
 	angband.h \
 	birth.h \
 	cmds.h \
+	cmd-core.h \
 	config.h \
 	effects.h \
-	game-cmd.h \
 	game-event.h \
 	guid.h \
 	h-basic.h \
@@ -118,6 +118,7 @@ ANGFILES = \
 	birth.o \
 	cave.o \
 	cmd-cave.o \
+	cmd-core.o \
 	cmd-context.o \
 	cmd-know.o \
 	cmd-misc.o \
@@ -129,10 +130,10 @@ ANGFILES = \
 	dungeon.o \
 	effects.o \
 	files.o \
-	game-cmd.o \
 	game-event.o \
 	generate.o \
 	gen-cave.o \
+	gen-chunk.o \
 	gen-monster.o \
 	gen-room.o \
 	gen-util.o \
@@ -201,6 +202,7 @@ ANGFILES = \
 	ui-menu.o \
 	ui-options.o \
 	ui-spell.o \
+	ui-store.o \
 	wiz-spoil.o \
 	wiz-stats.o \
 	wizard.o \

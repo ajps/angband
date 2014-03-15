@@ -96,7 +96,7 @@ static void py_pickup_gold(void)
 	for (this_o_idx = cave->o_idx[py][px]; this_o_idx; this_o_idx = next_o_idx)
 	{
 		/* Get the object */
-		o_ptr = object_byid(this_o_idx);
+		o_ptr = cave_object(cave, this_o_idx);
 
 		/* Get the next object */
 		next_o_idx = o_ptr->next_o_idx;
@@ -209,7 +209,7 @@ static void py_pickup_aux(int o_idx, bool domsg)
 	int slot, quiver_slot = 0;
 
 	char o_name[80];
-	object_type *o_ptr = object_byid(o_idx);
+	object_type *o_ptr = cave_object(cave, o_idx);
 
 	/* Carry the object */
 	slot = inven_carry(player, o_ptr);
@@ -294,7 +294,7 @@ int do_autopickup(void)
 	for (this_o_idx = cave->o_idx[py][px]; this_o_idx; this_o_idx = next_o_idx)
 	{
 		/* Get the object and the next object */
-		o_ptr = object_byid(this_o_idx);
+		o_ptr = cave_object(cave, this_o_idx);
 		next_o_idx = o_ptr->next_o_idx;
 
 		/* Ignore all hidden objects and non-objects */
@@ -305,7 +305,7 @@ int do_autopickup(void)
 
 
 		/* Hack -- disturb */
-		disturb(player, 0, 0);
+		disturb(player, 0);
 
 
 		/* Automatically pick up items into the backpack */
@@ -396,7 +396,7 @@ byte py_pickup_item(int pickup, int item)
 	/* Tally objects that can be picked up.*/
 	floor_num = scan_floor(floor_list, N_ELEMENTS(floor_list), py, px, 0x08, NULL);
 	for (i = 0; i < floor_num; i++)
-	    can_pickup += inven_carry_okay(object_byid(floor_list[i]));
+	    can_pickup += inven_carry_okay(cave_object(cave, floor_list[i]));
 	
 	if (!can_pickup)
 	{
@@ -511,7 +511,7 @@ void move_player(int dir, bool disarm)
 	else if (!square_ispassable(cave, y, x))
 	{
 		/* Disturb the player */
-		disturb(player, 0, 0);
+		disturb(player, 0);
 
 		/* Notice unknown obstacles */
 		if (!sqinfo_has(cave->info[y][x], SQUARE_MARK))
@@ -567,7 +567,7 @@ void move_player(int dir, bool disarm)
 		/* Disturb player if the player is about to leave the area */
 		if (player->running && !player->running_firststep && old_dtrap && !new_dtrap)
 		{
-			disturb(player, 0, 0);
+			disturb(player, 0);
 			return;
 		}
 
@@ -587,7 +587,7 @@ void move_player(int dir, bool disarm)
 		/* Handle "store doors" */
 		if (square_isshop(cave, player->py, player->px)) {
 			/* Disturb */
-			disturb(player, 0, 0);
+			disturb(player, 0);
 			cmdq_push(CMD_ENTER_STORE);
 		}
 
@@ -603,7 +603,7 @@ void move_player(int dir, bool disarm)
 		if (square_invisible_trap(cave, y, x)) 
 		{
 			/* Disturb */
-			disturb(player, 0, 0);
+			disturb(player, 0);
 			
 			/* Hit the trap. */
 			hit_trap(y, x);
@@ -613,7 +613,7 @@ void move_player(int dir, bool disarm)
 		else if (square_visible_trap(cave, y, x))
 		{
 			/* Disturb */
-			disturb(player, 0, 0);
+			disturb(player, 0);
 
 			/* Hit the trap */
 			hit_trap(y, x);

@@ -22,7 +22,7 @@
 #include "death.h"
 #include "dungeon.h"
 #include "files.h"
-#include "game-cmd.h"
+#include "cmd-core.h"
 #include "history.h"
 #include "init.h"
 #include "obj-desc.h"
@@ -1661,7 +1661,7 @@ void do_cmd_help(void)
 void save_game(void)
 {
 	/* Disturb the player */
-	disturb(player, 1, 0);
+	disturb(player, 1);
 
 	/* Clear messages */
 	message_flush();

@@ -207,6 +207,7 @@ typedef struct
 
 
 struct cave {
+	char *name;
 	s32b created_at;
 	int depth;
 
@@ -229,15 +230,19 @@ struct cave {
 	s16b **o_idx;
 
 	struct monster *monsters;
-	int mon_max;
-	int mon_cnt;
+	u16b mon_max;
+	u16b mon_cnt;
+
+	struct object *objects;
+	u16b obj_max;
+	u16b obj_cnt;
 
 	struct trap_type *traps;
-	s16b trap_max;
+	u16b trap_max;
 };
 
 extern int distance(int y1, int x1, int y2, int x2);
-extern bool los(int y1, int x1, int y2, int x2);
+extern bool los(struct cave *c, int y1, int x1, int y2, int x2);
 extern bool no_light(void);
 extern bool square_valid_bold(int y, int x);
 extern byte get_color(byte a, int attr, int n);
@@ -253,19 +258,20 @@ extern bool player_has_los_bold(int y, int x);
 extern bool player_can_see_bold(int y, int x);
 extern void update_view(struct cave *c, struct player *p);
 extern void map_area(void);
-extern void wiz_light(bool full);
+extern void wiz_light(struct cave *c, bool full);
 extern void wiz_dark(void);
 extern int project_path(u16b *gp, int range, int y1, int x1, int y2, int x2, int flg);
-extern bool projectable(int y1, int x1, int y2, int x2, int flg);
-extern void scatter(int *yp, int *xp, int y, int x, int d, bool need_los);
-extern void disturb(struct player *p, int stop_search, int unused_flag);
+extern bool projectable(struct cave *c, int y1, int x1, int y2, int x2, int flg);
+extern void scatter(struct cave *c, int *yp, int *xp, int y, int x, int d, bool need_los);
 extern bool is_quest(int level);
 extern bool dtrap_edge(int y, int x);
 
 /* XXX: temporary while I refactor */
 extern struct cave *cave;
+extern struct cave **chunk_list;
+extern u16b chunk_list_max;
 
-extern struct cave *cave_new(void);
+extern struct cave *cave_new(int height, int width);
 extern void cave_free(struct cave *c);
 
 extern struct feature *square_feat(struct cave *c, int y, int x);
@@ -361,9 +367,13 @@ extern struct monster *square_monster(struct cave *c, int y, int x);
 extern int cave_monster_max(struct cave *c);
 extern int cave_monster_count(struct cave *c);
 
+extern struct object *cave_object(struct cave *c, int idx); 
+extern struct object *square_object(struct cave *c, int y, int x);
+extern int cave_object_max(struct cave *c);
+extern int cave_object_count(struct cave *c);
+
 extern struct trap_type *cave_trap(struct cave *c, int idx);
 extern int cave_trap_max(struct cave *c);
-extern int cave_trap_count(struct cave *c);
 
 void upgrade_mineral(struct cave *c, int y, int x);
 

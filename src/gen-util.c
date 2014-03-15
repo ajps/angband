@@ -105,6 +105,21 @@ byte get_angle_to_grid[41][41] =
 
 
 /**
+ * Used to convert (x, y) into an array index (i) in a chunk of width w.
+ */
+int yx_to_i(int y, int x, int w) {
+    return y * w + x;
+}
+
+/**
+ * Used to convert an array index (i) into (x, y) in a chunk of width w.
+ */
+void i_to_yx(int i, int w, int *y, int *x) {
+    *y = i / w;
+    *x = i % w;
+}
+
+/**
  * Shuffle an array using Knuth's shuffle.
  */
 void shuffle(int *arr, int n)
@@ -124,12 +139,16 @@ void shuffle(int *arr, int n)
  * predicate.
  */
 static bool _find_in_range(struct cave *c, int *y, int y1, int y2, int *x,
-						   int x1, int x2, int *squares, square_predicate pred)
+						   int x1, int x2, square_predicate pred)
 {
     int yd = y2 - y1;
     int xd = x2 - x1;
     int i, n = yd * xd;
     bool found = FALSE;
+
+    /* Allocate the squares, and randomize their order */
+    int *squares = mem_alloc(n * sizeof(int));
+    for (i = 0; i < n; i++) squares[i] = i;
 
     /* Test each square in (random) order for openness */
     for (i = 0; i < n && !found; i++) {
@@ -143,6 +162,8 @@ static bool _find_in_range(struct cave *c, int *y, int y1, int y2, int *x,
 		if (pred(c, *y, *x)) found = TRUE;
     }
 
+	mem_free(squares);
+
     /* Return whether we found an empty square or not. */
     return found;
 }
@@ -153,9 +174,7 @@ static bool _find_in_range(struct cave *c, int *y, int y1, int y2, int *x,
  */
 bool cave_find(struct cave *c, int *y, int *x, square_predicate pred)
 {
-    int h = c->height;
-    int w = c->width;
-    return _find_in_range(c, y, 0, h, x, 0, w, cave_squares, pred);
+    return _find_in_range(c, y, 0, c->height, x, 0, c->width, pred);
 }
 
 
@@ -166,23 +185,7 @@ bool cave_find(struct cave *c, int *y, int *x, square_predicate pred)
 static bool cave_find_in_range(struct cave *c, int *y, int y1, int y2,
 							   int *x, int x1, int x2, square_predicate pred)
 {
-    int yd = y2 - y1;
-    int xd = x2 - x1;
-    int n = yd * xd;
-    int i, found;
-
-    /* Allocate the squares, and randomize their order */
-    int *squares = C_ZNEW(n, int);
-    for (i = 0; i < n; i++) squares[i] = i;
-
-    /* Do the actual search */
-    found = _find_in_range(c, y, y1, y2, x, x1, x2, squares, pred);
-
-    /* Deallocate memory */
-    FREE(squares);
-
-    /* Return whether or not we found an empty square */
-    return found;
+    return _find_in_range(c, y, y1, y2, x, x1, x2, pred);
 }
 
 
@@ -594,10 +597,10 @@ void vault_monsters(struct cave *c, int y1, int x1, int depth, int num)
 			int d = 1;
 
 			/* Pick a nearby location */
-			scatter(&y, &x, y1, x1, d, TRUE);
+			scatter(c, &y, &x, y1, x1, d, TRUE);
 
 			/* Require "empty" floor grids */
-			if (!square_isempty(cave, y, x)) continue;
+			if (!square_isempty(c, y, x)) continue;
 
 			/* Place the monster (allow groups) */
 			pick_and_place_monster(c, y, x, depth, TRUE, TRUE, ORIGIN_DROP_SPECIAL);

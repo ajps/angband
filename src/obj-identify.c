@@ -351,9 +351,9 @@ void object_flavor_aware(object_type *o_ptr)
 	player->notice |= PN_SQUELCH;
 	apply_autoinscription(o_ptr);
 
-	for (i = 1; i < o_max; i++)
+	for (i = 1; i < cave_object_max(cave); i++)
 	{
-		const object_type *floor_o_ptr = object_byid(i);
+		const object_type *floor_o_ptr = cave_object(cave, i);
 
 		/* Some objects change tile on awareness */
 		/* So update display for all floor objects of this kind */
@@ -1180,7 +1180,7 @@ void sense_inventory(void)
 		feel = object_pseudo(o_ptr);
 
 		/* Stop everything */
-		disturb(player, 0, 0);
+		disturb(player, 0);
 
 		if (cursed)
 			text = "cursed";

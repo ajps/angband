@@ -1430,8 +1430,8 @@ static object_type *find_artifact(struct artifact *artifact)
 	/* Look for the artifact, either in inventory, store or the object list */
 	for (i = 0; i < z_info->o_max; i++)
 	{
-		if (object_byid(i)->artifact == artifact)
-			return object_byid(i);
+		if (cave_object(cave, i)->artifact == artifact)
+			return cave_object(cave, i);
 	}
 
 	for (i = 0; i < INVEN_TOTAL; i++)
@@ -2100,9 +2100,7 @@ static void do_cmd_knowledge_features(const char *name, int row)
 
 static void do_cmd_knowledge_store(const char *name, int row)
 {
-	store_knowledge = row - 5;
-	do_cmd_store_knowledge();
-	store_knowledge = STORE_NONE;
+	textui_store_knowledge(row - 5);
 }
 
 static void do_cmd_knowledge_scores(const char *name, int row)
