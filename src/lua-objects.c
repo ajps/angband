@@ -17,6 +17,9 @@
  *    are included in all such copies.  Other copyrights may also apply.
   */
 #include "angband.h"
+
+#include "lua.h"
+
 #include "lua-bindings.h"
 #include "lua-objects.h"
 #include "lua-cmd.h"
@@ -115,6 +118,72 @@ static int lua_objects_get_idx(lua_State *L)
 	int idx = luaL_checknumber(L, 1);
 
 	lua_newobject(L, idx);
+	return 1;
+}
+
+
+
+/**
+ * Pushes a table containing flags of the flag type `type` that are
+ * known by the player to be on the object `o_ptr`.  `udata_idx` is
+ * a stack index for the corresponding userdata.
+ */
+static int push_flags_table(lua_State *L, int udata_idx, const object_type *o_ptr, int type)
+{
+	size_t i;
+	size_t nflags = 0;
+	int flag_cache_idx;
+
+	/* Grab the cache table, leave just that on the stack */
+	lua_getuservalue(L, udata_idx);
+	lua_getfield(L, -1, "flags");
+ 	lua_remove(L, -2);
+	flag_cache_idx = lua_gettop(L);
+
+	/* Look for a table for the required flag type */
+	lua_pushnumber(L, type);
+	lua_gettable(L, -2);
+
+	if (lua_istable(L, -1)) {
+		/* remove the cache table to return the retrieved flags  */
+		lua_remove(L, flag_cache_idx);
+		return 1;
+	} else {
+		lua_pop(L, 1); /* nil */
+	}
+
+	/* Our return value */
+	lua_newtable(L);
+
+	/* Create new table of values */
+	for (i = 0; i < OF_MAX; i++) {
+		s16b flag = 0;
+		
+		if (flag_table[i].type == type) {
+			flag = get_known_flag(o_ptr, flag_table[i].index);
+
+			if (flag == FLAG_SET) {
+				lua_pushboolean(L, TRUE);
+				lua_setfield(L, -2, flag_table[i].name);
+				nflags++;
+			} else if (flag != 0) {
+				lua_pushnumber(L, flag);
+				lua_setfield(L, -2, flag_table[i].name);
+				nflags++;
+			}
+		}
+	}
+
+	/* Don't cache or return the table if there aren't any flags in it. */
+	if (nflags == 0)
+		return 0;
+
+	/* Stash a reference in the cache */
+	lua_pushnumber(L, type);
+	lua_pushvalue(L, -2);
+	lua_settable(L, flag_cache_idx);
+	lua_remove(L, flag_cache_idx);
+
 	return 1;
 }
 
@@ -452,70 +521,181 @@ static int push_origin_depth(lua_State *L, const object_type *o_ptr)
 	return 1;
 }
 
-
-/**
- * Pushes a table containing flags of the flag type `type` that are
- * known by the player to be on the object `o_ptr`.  `udata_idx` is
- * a stack index for the corresponding userdata.
- */
-static int push_flags_table(lua_State *L, int udata_idx, const object_type *o_ptr, int type)
+static int push_name(lua_State *L, const object_type *o_ptr)
 {
-	size_t i;
-	size_t nflags = 0;
-	int flag_cache_idx;
-
-	/* Grab the cache table, leave just that on the stack */
-	lua_getuservalue(L, udata_idx);
-	lua_getfield(L, -1, "flags");
- 	lua_remove(L, -2);
-	flag_cache_idx = lua_gettop(L);
-
-	/* Look for a table for the required flag type */
-	lua_pushnumber(L, type);
-	lua_gettable(L, -2);
-
-	if (lua_istable(L, -1)) {
-		/* remove the cache table to return the retrieved flags  */
-		lua_remove(L, flag_cache_idx);
-		return 1;
-	} else {
-		lua_pop(L, 1); /* nil */
-	}
-
-	/* Our return value */
-	lua_newtable(L);
-
-	/* Create new table of values */
-	for (i = 0; i < OF_MAX; i++) {
-		s16b flag = 0;
-		
-		if (flag_table[i].type == type) {
-			flag = get_known_flag(o_ptr, flag_table[i].index);
-
-			if (flag == FLAG_SET) {
-				lua_pushboolean(L, TRUE);
-				lua_setfield(L, -2, flag_table[i].name);
-				nflags++;
-			} else if (flag != 0) {
-				lua_pushnumber(L, flag);
-				lua_setfield(L, -2, flag_table[i].name);
-				nflags++;
-			}
-		}
-	}
-
-	/* Don't cache or return the table if there aren't any flags in it. */
-	if (nflags == 0)
-		return 0;
-
-	/* Stash a reference in the cache */
-	lua_pushnumber(L, type);
-	lua_pushvalue(L, -2);
-	lua_settable(L, flag_cache_idx);
-	lua_remove(L, flag_cache_idx);
-
+	char o_name[80];
+	object_desc(o_name, sizeof(o_name), o_ptr, ODESC_PREFIX);
+	lua_pushstring(L, o_name);
 	return 1;
 }
+
+static int push_money(lua_State *L, const object_type *o_ptr)
+{
+	if (!tval_is_money(o_ptr))
+		return 0;
+
+	lua_pushnumber(L, o_ptr->pval[DEFAULT_PVAL]);
+	return 1;
+}
+
+static int push_inscription(lua_State *L, const object_type *o_ptr)
+{
+	if (!o_ptr->note)
+		return 0;
+
+	lua_pushstring(L, quark_str(o_ptr->note));
+	return 1;
+}
+
+static int push_is_known(lua_State *L, const object_type *o_ptr)
+{
+	lua_pushboolean(L, object_is_known(o_ptr));
+	return 1;
+}
+
+static int push_type(lua_State *L, const object_type *o_ptr)
+{
+	 lua_pushstring(L, o_ptr->kind->name);
+	 return 1;
+}
+
+static int push_is_squelched(lua_State *L, const object_type *o_ptr)
+{
+	lua_pushboolean(L, squelch_item_ok(o_ptr));
+	 return 1;
+}
+
+static int push_flavor_known(lua_State *L, const object_type *o_ptr)
+{
+	lua_pushboolean(L, object_flavor_is_aware(o_ptr));
+	 return 1;
+}
+
+static int push_slays(lua_State *L, const object_type *o_ptr) 
+{
+	return push_flags_table(L, 1, o_ptr, OFT_SLAY);
+}
+	
+static int push_resists(lua_State *L, const object_type *o_ptr) 
+{
+	return push_flags_table(L, 1, o_ptr, OFT_LRES);
+}
+	
+static int push_stats(lua_State *L, const object_type *o_ptr) 
+{
+	return push_flags_table(L, 1, o_ptr, OFT_STAT);
+}
+	
+static int push_abilities(lua_State *L, const object_type *o_ptr) 
+{
+	return push_flags_table(L, 1, o_ptr, OFT_PVAL);
+}
+	
+static int push_kills(lua_State *L, const object_type *o_ptr) 
+{
+	return push_flags_table(L, 1, o_ptr, OFT_KILL);
+}
+
+static int push_brands(lua_State *L, const object_type *o_ptr) 
+{
+	return push_flags_table(L, 1, o_ptr, OFT_BRAND);
+}
+
+static int push_sustains(lua_State *L, const object_type *o_ptr) 
+{
+	return push_flags_table(L, 1, o_ptr, OFT_SUST);
+}
+
+static int push_vulnerable(lua_State *L, const object_type *o_ptr) 
+{
+	return push_flags_table(L, 1, o_ptr, OFT_VULN);
+}
+
+static int push_ignores(lua_State *L, const object_type *o_ptr) 
+{
+	return push_flags_table(L, 1, o_ptr, OFT_IGNORE);
+}
+
+static int push_hates(lua_State *L, const object_type *o_ptr) 
+{
+	return push_flags_table(L, 1, o_ptr, OFT_HATES);
+}
+
+static int push_curses(lua_State *L, const object_type *o_ptr) 
+{
+	return push_flags_table(L, 1, o_ptr, OFT_CURSE);
+}
+
+static int push_bad(lua_State *L, const object_type *o_ptr) 
+{
+	return push_flags_table(L, 1, o_ptr, OFT_BAD);
+}
+
+static int push_protects(lua_State *L, const object_type *o_ptr) 
+{
+	return push_flags_table(L, 1, o_ptr, OFT_PROT);
+}
+
+static int push_misc_magic(lua_State *L, const object_type *o_ptr) 
+{
+	return push_flags_table(L, 1, o_ptr, OFT_MISC);
+}
+
+static int push_knowledge(lua_State *L, const object_type *o_ptr) 
+{
+	return push_flags_table(L, 1, o_ptr, OFT_INT);
+}
+
+typedef int (*object_property)(lua_State *L, const object_type *o_ptr);
+
+static struct {
+	const char *key;
+	object_property fn;
+} properties[] = {
+	{ "name", push_name },
+	{ "origin", push_origin },
+	{ "origin_depth", push_origin_depth },
+	{ "combat", push_combat },
+	{ "light", push_light },
+	{ "digging", push_digging },
+	{ "chest", push_chest },
+	{ "nourishment", push_nourishment },
+	{ "pseudo_id", push_pseudo },
+	{ "charges", push_charges },
+	{ "charging", push_num_charging },
+	{ "money", push_money },
+	{ "inscription", push_inscription },
+	{ "is_known", push_is_known },
+	{ "type", push_type },
+	{ "is_squelched", push_is_squelched },
+	{ "flavor_known", push_flavor_known },
+	// { "effect", push_effect },
+
+	/* Flags */
+	{ "slays", push_slays },
+	{ "resists", push_resists },
+	{ "stats", push_stats },
+	{ "abilities", push_abilities },
+	{ "kills", push_kills },
+	{ "brands", push_brands },
+	{ "sustains", push_sustains },
+	{ "vulnerable", push_vulnerable },
+	{ "ignores", push_ignores },
+	{ "hates", push_hates },
+	{ "curses", push_curses },
+	{ "bad", push_bad },
+	{ "protects", push_protects },
+	{ "misc_magic", push_misc_magic },
+	{ "knowledge", push_knowledge },
+};
+
+static struct {
+	const char *key;
+	lua_CFunction fn;
+} methods[] = {
+	{ "use", lua_cmd_use },
+	{ "drop", lua_cmd_drop },
+};
 
 /**
  * This is called whenever you attempt to index an object, e.g. obj.use()
@@ -531,6 +711,7 @@ int lua_object_meta_index(lua_State *L)
 	struct object_udata *obj;
 	object_type *o_ptr = NULL;
 	const char *key;
+	size_t i;
 
 	obj = luaL_checkudata(L, 1, "object");
 	key = luaL_checkstring(L, 2);
@@ -538,95 +719,19 @@ int lua_object_meta_index(lua_State *L)
 
 	/* TODO: check for a valid object? */
 
-	/* METHODS */
-	if (streq(key, "use")) {
-		lua_pushcfunction(L, lua_cmd_use);
-		return 1;
-	} else if (streq(key, "drop")) {
-		lua_pushcfunction(L, lua_cmd_drop);
-		return 1;
+	for (i = 0; i < N_ELEMENTS(methods); i++) {
+		if (streq(key, methods[i].key)) {
+			lua_pushcfunction(L, methods[i].fn);
+			return 1;
+		}
 	}
 
-	/* PROPERTIES */
-	else if (streq(key, "name")) {
-		char o_name[80];
-		object_desc(o_name, sizeof(o_name), o_ptr, ODESC_PREFIX);
-		lua_pushstring(L, o_name);
-		return 1;
-	} else if (streq(key, "is_known")) {
-		lua_pushboolean(L, object_is_known(o_ptr));
-		return 1;
-	} else if (streq(key, "is_squelched")) {
-		lua_pushboolean(L, squelch_item_ok(o_ptr));
-		return 1;
-	} else if (streq(key, "flavor_known")) {
-		lua_pushboolean(L, object_flavor_is_aware(o_ptr));
-		return 1;
-	} else if (streq(key, "inscription")) {
-		if (o_ptr->note)
-			lua_pushstring(L, quark_str(o_ptr->note));
-		else
-			lua_pushnil(L);
-		return 1;
-	} else if (streq(key, "effect")) {
-		/* An effect object?  A number? */
-	} else if (streq(key, "type")) {
-		 lua_pushstring(L, o_ptr->kind->name);
-		 return 1;
-	} else if (streq(key, "origin")) {
-		return push_origin(L, o_ptr);
-	} else if (streq(key, "origin_depth")) {
-		return push_origin_depth(L, o_ptr);
-	} else if (streq(key, "combat")) {
-		return push_combat(L, o_ptr);
-	} else if (streq(key, "light")) {
-		return push_light(L, o_ptr);
-	} else if (streq(key, "money") && tval_is_money(o_ptr)) {
-		lua_pushnumber(L, o_ptr->pval[DEFAULT_PVAL]);
-		return 1;
-	} else if (streq(key, "chest") && tval_is_chest(o_ptr)) {
-		return push_chest(L, o_ptr);
-	} else if (streq(key, "nourishment")) {
-		return push_nourishment(L, o_ptr);
-	} else if (streq(key, "digging")) {
-		return push_digging(L, o_ptr);
-	} else if (streq(key, "pseudo_id")) {
-		return push_pseudo(L, o_ptr);
-	} else if (streq(key, "charges")) {
-		return push_charges(L, o_ptr);
-	} else if (streq(key, "charging")) {
-		return push_num_charging(L, o_ptr);
-	} else if (streq(key, "slays")) {
-		return push_flags_table(L, 1, o_ptr, OFT_SLAY);
-	} else if (streq(key, "resists")) {
-		return push_flags_table(L, 1, o_ptr, OFT_LRES);
-	} else if (streq(key, "stats")) {
-		return push_flags_table(L, 1, o_ptr, OFT_STAT);
-	} else if (streq(key, "abilities")) {
-		return push_flags_table(L, 1, o_ptr, OFT_PVAL);
-	} else if (streq(key, "kills")) {
-		return push_flags_table(L, 1, o_ptr, OFT_KILL);
-	} else if (streq(key, "brands")) {
-		return push_flags_table(L, 1, o_ptr, OFT_BRAND);
-	} else if (streq(key, "sustains")) {
-		return push_flags_table(L, 1, o_ptr, OFT_SUST);
-	} else if (streq(key, "vulnerable")) {
-		return push_flags_table(L, 1, o_ptr, OFT_VULN);
-	} else if (streq(key, "ignores")) {
-		return push_flags_table(L, 1, o_ptr, OFT_IGNORE);
-	} else if (streq(key, "hates")) {
-		return push_flags_table(L, 1, o_ptr, OFT_HATES);
-	} else if (streq(key, "curses")) {
-		return push_flags_table(L, 1, o_ptr, OFT_CURSE);
-	} else if (streq(key, "bad")) {
-		return push_flags_table(L, 1, o_ptr, OFT_BAD);
-	} else if (streq(key, "protects")) {
-		return push_flags_table(L, 1, o_ptr, OFT_PROT);
-	} else if (streq(key, "misc_magic")) {
-		return push_flags_table(L, 1, o_ptr, OFT_MISC);
-	} else if (streq(key, "knowledge")) {
-		return push_flags_table(L, 1, o_ptr, OFT_INT);
+	for (i = 0; i < N_ELEMENTS(properties); i++) {
+		if (streq(key, properties[i].key)) {
+			return properties[i].fn(L, o_ptr);
+		}
 	}
+
 	return 0;
 }
 
