@@ -176,6 +176,21 @@ struct cave_profile cave_profiles[] = {
 		-1
 	},
 	{
+		"hard_centre", hard_centre_gen, 1, 0, 200, 0, 0,
+
+		/* tunnels -- not applicable */
+		{"tunnel-null", 0, 0, 0, 0, 0},
+
+		/* streamers -- not applicable */
+		{"streamer-null", 0, 0, 0, 0, 0, 0},
+
+		/* room_profiles -- not applicable */
+		NULL,
+
+		/* cutoff -- unused because of special labyrinth_check  */
+		-1
+	},
+	{
 		"labyrinth", labyrinth_gen, 1, 0, 200, 0, 0,
 
 		/* tunnels -- not applicable */
@@ -548,17 +563,19 @@ void cave_generate(struct cave *c, struct player *p) {
     int y, x, tries = 0;
 	struct cave *chunk;
 
-    /* Start with dungeon-wide permanent rock */
-	cave_clear(c, p);
-    fill_rectangle(c, 0, 0, DUNGEON_HGT - 1, DUNGEON_WID - 1, FEAT_PERM,
-				   SQUARE_NONE);
-
     assert(c);
 
-    c->depth = p->depth;
+    /* Start with dungeon-wide permanent rock */
+	c->height = DUNGEON_HGT;
+	c->width = DUNGEON_WID;
+	cave_clear(c, p);
+	fill_rectangle(c, 0, 0, DUNGEON_HGT - 1, DUNGEON_WID - 1, FEAT_PERM,
+				   SQUARE_NONE);
 
-    /* Generate */
-    for (tries = 0; tries < 100 && error; tries++) {
+	c->depth = p->depth;
+
+	/* Generate */
+	for (tries = 0; tries < 100 && error; tries++) {
 		struct dun_data dun_body;
 
 		error = NULL;
@@ -615,6 +632,10 @@ void cave_generate(struct cave *c, struct player *p) {
     }
 
     if (error) quit_fmt("cave_generate() failed 100 times!");
+
+	/* Re-adjust cave size */
+	c->height = chunk->height;
+	c->width = chunk->width;
 
 	/* Copy into the cave */
 	if (!chunk_copy(c, chunk, 0, 0, 0, 0))
