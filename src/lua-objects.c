@@ -706,7 +706,7 @@ static struct {
  *       e.g. if we aren't carrying the object, make .drop return nil so
  *       that we can't call it.
  */
-int lua_object_meta_index(lua_State *L)
+static int lua_object_meta_index(lua_State *L)
 {
 	struct object_udata *obj;
 	object_type *o_ptr = NULL;
@@ -735,11 +735,80 @@ int lua_object_meta_index(lua_State *L)
 	return 0;
 }
 
+static int object_next(lua_State *L)
+{
+	struct object_udata *obj;
+	object_type *o_ptr = NULL;
+	const char *key;
+	int nresults = 0;
+	size_t i, next = 0;
+	int top = 0;
+
+	obj = luaL_checkudata(L, 1, "object");
+	o_ptr = object_from_item_idx(obj->idx);
+	
+	/* Find our starting position */
+	if (lua_isnil(L, 2) || lua_isnone(L, 2)) {
+		next = 0;
+	} else if (lua_isstring(L, 2)) {
+		key = lua_tostring(L, 2);
+
+		for (i = 0; i < N_ELEMENTS(properties); i++) {
+			if (streq(key, properties[i].key)) {
+				next = i + 1;
+			}
+		}
+	} else {
+		return luaL_error(L, "Not a valid key");
+	}
+
+	/* Then find the next key, value */
+	top = lua_gettop(L);
+	for (i = next; i < N_ELEMENTS(properties); i++) {
+		nresults = properties[i].fn(L, o_ptr);
+
+		/* Need to have a non-nil result to return a key, value pair */
+		if (nresults > 0 && !lua_isnil(L, -2)) {
+			lua_pushstring(L, properties[i].key);
+			lua_insert(L, -2);
+			return 2;
+		}
+
+		/* Clear any rubbish that might be on the stack. */
+		lua_settop(L, top);
+	}
+
+	/* If we've got this far, we're done. */
+	lua_pushnil(L);
+	return 1;
+}
+
+/**
+ * Returns an iterator that iterates over the object's properties, but not
+ * its methods.
+ */
+static int lua_object_meta_pairs(lua_State *L)
+{
+	struct object_udata *obj;
+	object_type *o_ptr = NULL;
+
+	obj = luaL_checkudata(L, 1, "object");
+	o_ptr = object_from_item_idx(obj->idx);
+
+	/* TODO: check for a valid object? */
+
+	lua_pushcfunction(L, object_next);
+	lua_pushvalue(L, 1);
+	lua_pushnil(L);
+
+	return 3;
+}
+
 /*
  * Just useful for debugging purposes to print a bit more info as a
  * description of the object.
  */
-int lua_object_meta_tostring(lua_State *L)
+static int lua_object_meta_tostring(lua_State *L)
 {
 	struct object_udata *obj;
 	object_type *o_ptr = NULL;
@@ -776,6 +845,10 @@ void lua_objects_init(void)
 
 	lua_pushstring(L, "__tostring");
 	lua_pushcfunction(L, lua_object_meta_tostring);
+	lua_settable(L, -3);
+
+	lua_pushstring(L, "__pairs");
+	lua_pushcfunction(L, lua_object_meta_pairs);
 	lua_settable(L, -3);
 
 	/* For our purposes, all resists are alike */
