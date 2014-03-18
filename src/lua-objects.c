@@ -92,10 +92,18 @@ static s16b get_known_flag(const object_type *o_ptr, int flag)
 
 
 /**
- * Creates & initialises a new object userdata, pushes it to the stack
+ * Creates & initialises a new object userdata, pushes it to the stack.
+ * If obj_idx doesn't point to an object, pushes nil and returns NULL instead.
  */
 static struct object_udata *lua_newobject(lua_State *L, int obj_idx) {
 	struct object_udata *obj;
+	object_type *o_ptr = NULL;
+
+	o_ptr = object_from_item_idx(obj_idx);
+	if (!o_ptr->tval) {
+		lua_pushnil(L);
+		return NULL;
+	}
 
 	obj = lua_newuserdata(L, sizeof(struct object_udata));
 	luaL_setmetatable(L, "object");
@@ -410,6 +418,8 @@ static int push_num_charging(lua_State *L, const object_type *o_ptr)
 
 static int push_chest(lua_State *L, const object_type *o_ptr)
 {
+	if (!tval_is_chest(o_ptr)) return 0;
+
 	if (!object_is_known(o_ptr)) {
 		lua_pushstring(L, "unknown");
 	}
@@ -529,6 +539,12 @@ static int push_name(lua_State *L, const object_type *o_ptr)
 	return 1;
 }
 
+static int push_number(lua_State *L, const object_type *o_ptr)
+{
+	lua_pushnumber(L, o_ptr->number);
+	return 1;
+}
+
 static int push_money(lua_State *L, const object_type *o_ptr)
 {
 	if (!tval_is_money(o_ptr))
@@ -555,7 +571,7 @@ static int push_is_known(lua_State *L, const object_type *o_ptr)
 
 static int push_type(lua_State *L, const object_type *o_ptr)
 {
-	 lua_pushstring(L, o_ptr->kind->name);
+	 lua_pushstring(L, tval_find_name(o_ptr->tval));
 	 return 1;
 }
 
@@ -653,6 +669,7 @@ static struct {
 	object_property fn;
 } properties[] = {
 	{ "name", push_name },
+	{ "number", push_number },
 	{ "origin", push_origin },
 	{ "origin_depth", push_origin_depth },
 	{ "combat", push_combat },
